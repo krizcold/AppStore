@@ -33,6 +33,8 @@ x-casaos:
     en_us: "A super modular Discord bot base. Drop new commands and events into the mounted folders to extend functionality."
   title:
     en_us: "Super Modular Discord Bot"
-  port_map: ""
+  port_map: "3000"
+  volumes:
+    - /DATA/AppData/$AppID/smdb-source
 
 
