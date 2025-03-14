@@ -10,9 +10,7 @@ services:
       GUILD_ID: 'REPLACE WITH YOUR DISCORD TEST SERVER ID'
       CLIENT_ID: 'REPLACE WITH THE BOT CLIENT ID'
     volumes:
-      - type: bind
-        source: /DATA/AppData/$AppID/smdb-source
-        target: /app/smdb-source
+      - smdb-source:/app/smdb-source
     networks:
       pcs: null
 
@@ -37,6 +35,11 @@ x-casaos:
     en_us: "Super Modular Discord Bot"
   port_map: "3000"
   volumes:
-    - /DATA/AppData/$AppID/smdb-source
+    smdb-source:
+      driver: local
+      driver_opts:
+        type: none
+        device: /DATA/AppData/super-modular-discord-bot/smdb-source
+        o: bind
 
 
