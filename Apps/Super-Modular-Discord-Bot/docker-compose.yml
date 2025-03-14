@@ -17,21 +17,22 @@ services:
         target: /app/smdb-source
     networks:
       pcs: null
-    x-casaos:
-      architectures:
-        - amd64
-        - arm64
-      main: super-modular-discord-bot
-      author: kriz_cold
-      developer: kriz_cold
-      tagline:
-        en_us: "A flexible Discord bot framework"
-      category: Chat
-      description:
-        en_us: "A super modular Discord bot base. Drop new commands and events into the mounted folders to extend functionality."
-      title:
-        en_us: "Super Modular Discord Bot"
-      port_map: ""
+      
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: super-modular-discord-bot
+  author: kriz_cold
+  developer: kriz_cold
+  tagline:
+    en_us: "A flexible Discord bot framework"
+  category: Chat
+  description:
+    en_us: "A super modular Discord bot base. Drop new commands and events into the mounted folders to extend functionality."
+  title:
+    en_us: "Super Modular Discord Bot"
+  port_map: ""
 
 networks:
   pcs:
