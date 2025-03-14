@@ -27,6 +27,7 @@ x-casaos:
   main: super-modular-discord-bot
   author: kriz_cold
   developer: kriz_cold
+  icon: https://github.com/krizcold/AppStore/blob/main/Apps/Super-Modular-Discord-Bot/icon.png
   tagline:
     en_us: "A flexible Discord bot framework"
   category: Chat
