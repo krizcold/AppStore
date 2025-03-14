@@ -9,15 +9,17 @@ services:
       DISCORD_TOKEN: 'REPLACE WITH YOUR DISCORD BOT TOKEN'
       GUILD_ID: 'REPLACE WITH YOUR DISCORD TEST SERVER ID'
       CLIENT_ID: 'REPLACE WITH THE BOT CLIENT ID'
-    ports:
-      - pcs
     volumes:
       - type: bind
         source: /DATA/AppData/$AppID/smdb-source
         target: /app/smdb-source
     networks:
       pcs: null
-      
+
+networks:
+  pcs:
+    name: pcs
+
 x-casaos:
   architectures:
     - amd64
@@ -34,7 +36,4 @@ x-casaos:
     en_us: "Super Modular Discord Bot"
   port_map: ""
 
-networks:
-  pcs:
-    external: true
 
