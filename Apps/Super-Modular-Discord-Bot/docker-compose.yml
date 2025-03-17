@@ -10,10 +10,7 @@ services:
       GUILD_ID: 'REPLACE WITH YOUR DISCORD TEST SERVER ID'
       CLIENT_ID: 'REPLACE WITH THE BOT CLIENT ID'
     volumes:
-      #- /DATA/AppData/$AppID/smdb-source:/app/smdb-source
-      - type: bind
-        source: /DATA/AppData/$AppID/smdb-source
-        target: /app/smdb-source
+      - /DATA/AppData/$AppID/smdb-source:/app/smdb-source
     networks:
       pcs: null
 
