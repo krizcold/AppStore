@@ -13,17 +13,14 @@ services:
       - type: bind
         source: /DATA/AppData/$AppID/smdb-source
         target: /app/smdb-source
-    networks:
-      pcs: null
+    network_mode: bridge
+    expose:
+      - 80
     x-casaos:
       volumes:
         - container: /app/smdb-source
           description:
             en_us: Super Modular Discord Bot source directory.
-
-networks:
-  pcs:
-    name: pcs
 
 x-casaos:
   architectures:
@@ -41,5 +38,7 @@ x-casaos:
   title:
     en_us: "Super Modular Discord Bot"
   port_map: "3000"
+  index: /
+  webui_port: 80
 
 
