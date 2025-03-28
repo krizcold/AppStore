@@ -1,4 +1,4 @@
-name: aptero-services
+name: aptero-meet
 
 x-casaos:
   architectures:
@@ -76,6 +76,7 @@ services:
       - reticulum
 
   meetfrontend:
+    container_name: aptero-meet
     hostname: meetfrontend
     image: aptero/aptero-hub:latest
     networks:
