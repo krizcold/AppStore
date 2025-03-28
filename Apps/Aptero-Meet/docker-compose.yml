@@ -2,19 +2,8 @@ name: aptero-meet
 
 services:           
   initializer:
-    container_name: aptero-meet
     image: aptero/aptero-services-initializer:latest   # Custom initializer image
     environment:
-      JWT_SECRET: ${JWT_SECRET}
-      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY}
-      UPLOAD_ENCRYPTION_KEY: ${UPLOAD_ENCRYPTION_KEY}
-      PERMS_KEY: ${PERMS_KEY}
-      USER_SERVICE_URL: ${USER_SERVICE_URL}
-      PHOTOMNEMONIC_ENDPOINT: ${PHOTOMNEMONIC_ENDPOINT}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USERNAME: ${SMTP_USERNAME}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
       SHORTLINK_DOMAIN: ${SHORTLINK_DOMAIN}
       RETICULUM_SERVER: ${RETICULUM_SERVER}
       API_360_TO_SCENE: ${API_360_TO_SCENE}
@@ -72,6 +61,7 @@ services:
       hidden: true
 
   meetfrontend:
+    container_name: aptero-meet
     hostname: meetfrontend
     image: aptero/aptero-hub:latest
     networks:
@@ -173,7 +163,7 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  main: meetfrontend
+  main: aptero-meet
   author: Aptero
   developer: Aptero
   icon: "https://github.com/krizcold/AppStore/blob/main/Apps/ApteroApps/icon.png?raw=true"
