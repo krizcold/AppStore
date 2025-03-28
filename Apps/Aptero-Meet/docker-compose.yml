@@ -1,4 +1,4 @@
-name: aptero-meet
+name: meetfrontend
 
 services:           
   initializer:
@@ -61,7 +61,6 @@ services:
       hidden: true
 
   meetfrontend:
-    container_name: aptero-meet
     hostname: meetfrontend
     image: aptero/aptero-hub:latest
     networks:
@@ -163,7 +162,7 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  main: aptero-meet
+  main: meetfrontend
   author: Aptero
   developer: Aptero
   icon: "https://github.com/krizcold/AppStore/blob/main/Apps/ApteroApps/icon.png?raw=true"
