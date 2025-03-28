@@ -2,6 +2,7 @@ name: aptero-meet
 
 services:           
   initializer:
+    container_name: aptero-meet
     image: aptero/aptero-services-initializer:latest   # Custom initializer image
     environment:
       JWT_SECRET: ${JWT_SECRET}
@@ -71,7 +72,6 @@ services:
       hidden: true
 
   meetfrontend:
-    container_name: aptero-meet
     hostname: meetfrontend
     image: aptero/aptero-hub:latest
     networks:
