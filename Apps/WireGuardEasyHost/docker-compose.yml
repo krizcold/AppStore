@@ -1,9 +1,26 @@
-name: wgeasy
+name: wgeasyhost
 services:
-  wgeasy:
-    image: ghcr.io/wg-easy/wg-easy:13
+  wgeasyhost:
+    container_name: wgeasyhost
+    image: nginx:alpine
     restart: unless-stopped
     network_mode: bridge
+    expose:
+      - 80
+    entrypoint: [ "/bin/sh", "-c" ]
+    command:
+      - "apk update"
+      - "apk add --no-cache wget"
+      - "wget -O /etc/nginx/nginx.conf https://raw.githubusercontent.com/Worph/AppStore/main/Apps/WireGuardEasyHost/nginx.conf"
+      - "nginx -g 'daemon off;'"
+    depends_on:
+      - wgeasyui
+
+  wgeasyui:
+    container_name: wgeasyui
+    image: ghcr.io/wg-easy/wg-easy:13
+    restart: unless-stopped
+    network_mode: host
     environment:
       PASSWORD: '$default_pwd'
       WG_HOST: '$public_ip'
@@ -18,12 +35,6 @@ services:
         - container: '51820'
           description:
             en_us: Wireguard VPN port
-    expose:
-      - 51821
-    ports:
-      - target: 51820
-        published: 51820
-        protocol: udp
     volumes:
       - type: bind
         source: /DATA/AppData/$AppID/wireguard
@@ -34,13 +45,12 @@ services:
     sysctls:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
-    container_name: wgeasy
+
 x-casaos:
   architectures:
     - amd64
     - arm
     - arm64
-  main: wgeasy
   tagline:
     en_us: WEB UI to manage WireGuard VPN.
     zh_cn: 管理 WireGuard VPN 的 WEB UI。
@@ -77,5 +87,6 @@ x-casaos:
   thumbnail: https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/WireGuardEasy/icon.png
   category: Network
   title:
-    en_us: WireGuard Easy
-  webui_port: 51821
+    en_us: WireGuard Easy - Host
+  main: wgeasyh
+  webui_port: 80
