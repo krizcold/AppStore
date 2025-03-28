@@ -173,6 +173,6 @@ x-casaos:
     en_us: >
       Aptero Meet integrates our custom 3D platform and our web editor (Opal) to enable interactive lessons, immersive job discovery, and AI-guided training at a fraction of the cost.
   title:
-    en_us: "Aptero Meet Immersive Platform"
+    en_us: "Aptero Meet"
   index: /
   webui_port: 80
