@@ -25,14 +25,31 @@ services:
       PRIVACY_LINK: ${PRIVACY_LINK}
       TERMS_LINK: ${TERMS_LINK}
     volumes:
-      - ./hubconf:/hubconf          # Mounts the hub configuration directory
-      - /workspace/data/reticulum_alpha/db:/var/lib/postgresql/data
-      - ./starterpack.zip:/starterpack/starterpack.zip:ro
+      - type: bind
+        source: ./hubconf
+        target: /hubconf
+      - type: bind
+        source: /workspace/data/reticulum_alpha/db
+        target: /var/lib/postgresql/data
+      - type: bind
+        source: ./starterpack.zip
+        target: /starterpack/starterpack.zip
+        read_only: true
     restart: "no"
     depends_on:
       - db
     x-casaos:
       hidden: true
+      volumes:
+        - container: /hubconf
+          description:
+            en_us: Initializer configuration directory.
+        - container: /var/lib/postgresql/data
+          description:
+            en_us: Initializer database directory.
+        - container: /starterpack
+          description:
+            en_us: Initializer starter pack directory.
 
   reverse_proxy:
     image: nginx:1.23.3
