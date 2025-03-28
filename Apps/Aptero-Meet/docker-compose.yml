@@ -165,7 +165,7 @@ x-casaos:
   main: meetfrontend
   author: Aptero
   developer: Aptero
-  icon: "https://github.com/krizcold/AppStore/blob/main/Apps/ApteroApps/icon.png?raw=true"
+  icon: "https://github.com/krizcold/AppStore/blob/main/Apps/Aptero-Meet/icon.png?raw=true"
   tagline:
     en_us: "Custom immersive training made fast with Aptero"
   category: Productivity
