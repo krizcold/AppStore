@@ -1,24 +1,5 @@
 name: aptero-meet
 
-x-casaos:
-  architectures:
-    - amd64
-    - arm64
-  main: meetfrontend
-  author: Aptero
-  developer: Aptero
-  icon: "https://github.com/krizcold/AppStore/blob/main/Apps/ApteroApps/icon.png?raw=true"
-  tagline:
-    en_us: "Custom immersive training made fast with Aptero"
-  category: Productivity
-  description:
-    en_us: >
-      Aptero Meet integrates our custom 3D platform and our web editor (Opal) to enable interactive lessons, immersive job discovery, and AI-guided training at a fraction of the cost.
-  title:
-    en_us: "Aptero Meet Immersive Platform"
-  index: /
-  webui_port: 80
-
 services:           
   initializer:
     image: aptero/aptero-services-initializer:latest   # Custom initializer image
@@ -169,3 +150,22 @@ networks:
 
 volumes:
   static-web-volume:
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: meetfrontend
+  author: Aptero
+  developer: Aptero
+  icon: "https://github.com/krizcold/AppStore/blob/main/Apps/ApteroApps/icon.png?raw=true"
+  tagline:
+    en_us: "Custom immersive training made fast with Aptero"
+  category: Productivity
+  description:
+    en_us: >
+      Aptero Meet integrates our custom 3D platform and our web editor (Opal) to enable interactive lessons, immersive job discovery, and AI-guided training at a fraction of the cost.
+  title:
+    en_us: "Aptero Meet Immersive Platform"
+  index: /
+  webui_port: 80
