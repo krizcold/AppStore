@@ -1,4 +1,4 @@
-version: '3'
+name: aptero-services
 
 x-casaos:
   architectures:
