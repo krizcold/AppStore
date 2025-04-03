@@ -90,7 +90,10 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
-      - /workspace/data/reticulum_alpha/db/:/var/lib/postgresql/data
+      #- /workspace/data/reticulum_alpha/db/:/var/lib/postgresql/data
+      - type: bind
+        source: /DATA/AppData/$AppID/db
+        target: /var/lib/postgresql/data
     x-casaos:
       hidden: true
       
