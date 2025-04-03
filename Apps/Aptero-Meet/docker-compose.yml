@@ -1,0 +1,182 @@
+name: meetfrontend
+
+services:           
+  initializer:
+    image: aptero/aptero-services-initializer:latest   # Custom initializer image
+    environment:
+      SHORTLINK_DOMAIN: ${SHORTLINK_DOMAIN}
+      RETICULUM_SERVER: ${RETICULUM_SERVER}
+      API_360_TO_SCENE: ${API_360_TO_SCENE}
+      CORS_PROXY_SERVER: ${CORS_PROXY_SERVER}
+      DEFAULT_SCENE_SID: ${DEFAULT_SCENE_SID}
+      REMOTE_VM_SERVICE: ${REMOTE_VM_SERVICE}
+      ROOM_TOKEN_SERVICE: ${ROOM_TOKEN_SERVICE}
+      TEAMS_APP_ID: ${TEAMS_APP_ID}
+      MICROSOFT_APP_ID: ${MICROSOFT_APP_ID}
+      MICROSOFT_APP_AUTHORITY: ${MICROSOFT_APP_AUTHORITY}
+      APP_SOURCE_LINK: ${APP_SOURCE_LINK}
+      APP_SOURCE_TEAMS_APP_LINK: ${APP_SOURCE_TEAMS_APP_LINK}
+      SIGNIN_REDIRECT_URI: ${SIGNIN_REDIRECT_URI}
+      GLOBAL_ASSETS_PATH: ${GLOBAL_ASSETS_PATH}
+      LOGGER_URL: ${LOGGER_URL}
+      LOGGER_ORIGIN: ${LOGGER_ORIGIN}
+      TWILIO_SID: ${TWILIO_SID}
+      TWILIO_AUTH: ${TWILIO_AUTH}
+      PRIVACY_LINK: ${PRIVACY_LINK}
+      TERMS_LINK: ${TERMS_LINK}
+    volumes:
+      - type: bind
+        source: /DATA/AppData/$AppID/hubconf
+        target: /app/hubconf
+      - type: bind
+        source: /DATA/AppData/$AppID/db
+        target: /var/lib/postgresql/data
+    depends_on:
+      - db
+    x-casaos:
+      hidden: true
+
+  reverse_proxy:
+    image: nginx:1.23.3
+    expose:
+      - "80"
+    restart: unless-stopped
+    networks:
+      - webtraefik
+    volumes:
+      - ./reverse_proxy_conf/nginx.conf:/etc/nginx/nginx.conf
+      - ./reverse_proxy_conf/conf.d:/etc/nginx/conf.d/ 
+      - ./reverse_proxy_conf/ssl/:/etc/ssl/
+      - ./reverse_proxy_conf/access/:/etc/access/
+    labels:
+      - "traefik.enable=true"
+      - "traefik.port=80"
+      - "traefik.docker.network=webtraefik"
+      - "traefik.frontend.rule=Host:alphahub.aptero.co"   
+      - "traefik.frontend.headers.SSLRedirect=true"
+      - "traefik.frontend.entryPoints=http,https"
+    depends_on:
+      - db
+      - meetfrontend
+      - reticulum
+    x-casaos:
+      hidden: true
+
+  meetfrontend:
+    hostname: meetfrontend
+    image: aptero/aptero-hub:latest
+    networks:
+      - webtraefik
+    expose:
+      - "80"
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /DATA/AppData/$AppID/hubconf
+        target: /usr/share/nginx/html/hubconf
+      - /workspace/data/apterohub/data:/usr/share/nginx/html/data
+      - static-web-volume:/usr/share/nginx/html/
+
+  db:
+    networks:
+      - webtraefik
+    hostname: db
+    image: postgres:10
+    command: postgres -c 'max_connections=250'
+    expose:
+      - "5432"
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - /workspace/data/reticulum_alpha/db/:/var/lib/postgresql/data
+    x-casaos:
+      hidden: true
+      
+  reticulum:
+    networks:
+      - webtraefik
+    hostname: reticulum
+    image: aptero/aptero-reticulum:latest
+    environment:
+      - "MAIN_HOST=${MAIN_HOST}"
+      - "DIALOG_HOSTNAME=-"
+      - "DIALOG_PORT=-"
+      - "JANUS_HOST=-"
+      - "JANUS_PORT=-"
+      - "NODE_ENV=production"
+      - "DB_USER=postgres"
+      - "DB_PWD=postgres"
+      - "DB_NAME=ret_prod"
+      - "DB_HOST=db"
+      - "JWT_SECRET=${JWT_SECRET}"
+      - "VIDEO360_SERVICE_URL=-"
+      - "USER_SERVICE_URL=${USER_SERVICE_URL}"
+      - "SENTRY_MODE=-"
+      - "SENTRY_DNS=-"
+      - "YOUTUBE_API_KEY=${YOUTUBE_API_KEY}"
+      - "YTDL_HOST=-"
+      - "DISCORD_CLIENT_ID=-"
+      - "DISCORD_CLIENT_SECRET=-"
+      - "DISCORD_BOT_TOKEN=-"
+      - "UPLOAD_ENCRYPTION_KEY=${UPLOAD_ENCRYPTION_KEY}"
+      - "BOT_ACCESS_KEY=-"
+      - "IFRAME_SCP=https://*"
+      - "SCRIPT_SRC=https://aframe.io https://cdn.jsdelivr.net/docsearch.js/1/docsearch.min.js https://s.ytimg.com https://ssl.google-analytics.com https://www.google-analytics.com https://www.youtube.com https://www.googletagmanager.com"
+      - "PHOTOMNEMONIC_ENDPOINT=${PHOTOMNEMONIC_ENDPOINT}"
+      - "SMTP_HOST=${SMTP_HOST}"
+      - "SMTP_PORT=${SMTP_PORT}"
+      - "SMTP_USERNAME=${SMTP_USERNAME}"
+      - "SMTP_PASSWORD=${SMTP_PASSWORD}"
+      - "PERMS_KEY=${PERMS_KEY}"
+    volumes:
+      - /workspace/data/reticulum_alpha/storage/:/ret/storage/
+      - static-web-volume:/ret/storage/assets/
+    depends_on:
+      - db
+    x-casaos:
+      hidden: true
+      
+  spoke:
+    image: aptero/aptero-spoke:latest
+    expose:
+      - "80"
+    restart: unless-stopped
+    networks:
+      - webtraefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.port=80"
+      - "traefik.docker.network=webtraefik"
+      - "traefik.frontend.rule=Host:alphahub.aptero.co;PathPrefixStrip:/opal/"   
+      - "traefik.frontend.headers.SSLRedirect=true"
+      - "traefik.frontend.entryPoints=http,https"
+    volumes:
+      - ./spokeconf/properties.js:/usr/share/nginx/html/properties.js
+
+networks:
+  webtraefik:
+    external: true
+
+volumes:
+  static-web-volume:
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: meetfrontend
+  author: Aptero
+  developer: Aptero
+  icon: "https://github.com/krizcold/AppStore/blob/main/Apps/Aptero-Meet/icon.png?raw=true"
+  tagline:
+    en_us: "Custom immersive training made fast with Aptero"
+  category: Productivity
+  description:
+    en_us: >
+      Aptero Meet integrates our custom 3D platform and our web editor (Opal) to enable interactive lessons, immersive job discovery, and AI-guided training at a fraction of the cost.
+  title:
+    en_us: "Aptero Meet"
+  index: /
+  webui_port: 80
