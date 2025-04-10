@@ -135,8 +135,14 @@ services:
       - "SMTP_PASSWORD=${SMTP_PASSWORD}"
       - "PERMS_KEY=${PERMS_KEY}"
     volumes:
-      - /workspace/data/reticulum_alpha/storage/:/ret/storage/
-      - static-web-volume:/ret/storage/assets/
+      #- /workspace/data/reticulum_alpha/storage/:/ret/storage/
+      #- static-web-volume:/ret/storage/assets/
+      - type: bind
+        source: /DATA/AppData/$AppID/reticulum
+        target: /ret/storage/
+      - type: bind
+        source: /DATA/AppData/$AppID/hubconf
+        target: /ret/hubconf
     depends_on:
       - db
     x-casaos:
