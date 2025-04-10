@@ -24,6 +24,7 @@ services:
       TWILIO_AUTH: ${TWILIO_AUTH}
       PRIVACY_LINK: ${PRIVACY_LINK}
       TERMS_LINK: ${TERMS_LINK}
+      REF_DOMAIN: ${REF_DOMAIN}
     volumes:
       - type: bind
         source: /DATA/AppData/$AppID/hubconf
