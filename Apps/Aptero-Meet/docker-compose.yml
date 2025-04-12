@@ -104,49 +104,63 @@ services:
     hostname: reticulum
     image: aptero/aptero-reticulum:latest
     environment:
-      - "MAIN_HOST=${MAIN_HOST}"
-      - "DIALOG_HOSTNAME=-"
-      - "DIALOG_PORT=-"
-      - "JANUS_HOST=-"
-      - "JANUS_PORT=-"
+      - "MAIN_HOST=80-meetfrontend-${REF_DOMAIN}"
       - "NODE_ENV=production"
       - "DB_USER=postgres"
       - "DB_PWD=postgres"
       - "DB_NAME=ret_prod"
       - "DB_HOST=db"
-      - "JWT_SECRET=${JWT_SECRET}"
-      - "VIDEO360_SERVICE_URL=-"
-      - "USER_SERVICE_URL=${USER_SERVICE_URL}"
-      - "SENTRY_MODE=-"
-      - "SENTRY_DNS=-"
-      - "YOUTUBE_API_KEY=${YOUTUBE_API_KEY}"
-      - "YTDL_HOST=-"
-      - "DISCORD_CLIENT_ID=-"
-      - "DISCORD_CLIENT_SECRET=-"
-      - "DISCORD_BOT_TOKEN=-"
-      - "UPLOAD_ENCRYPTION_KEY=${UPLOAD_ENCRYPTION_KEY}"
-      - "BOT_ACCESS_KEY=-"
+      - "JWT_SECRET=${JWT_SECRET}"                       # User provided
+      - "USER_SERVICE_URL=https://80-meetfrontend-${REF_DOMAIN}/service/dbapi"
+      - "YOUTUBE_API_KEY=${YOUTUBE_API_KEY}"             # User provided
+      - "UPLOAD_ENCRYPTION_KEY=${UPLOAD_ENCRYPTION_KEY}" # User provided
       - "IFRAME_SCP=https://*"
       - "SCRIPT_SRC=https://aframe.io https://cdn.jsdelivr.net/docsearch.js/1/docsearch.min.js https://s.ytimg.com https://ssl.google-analytics.com https://www.google-analytics.com https://www.youtube.com https://www.googletagmanager.com"
-      - "PHOTOMNEMONIC_ENDPOINT=${PHOTOMNEMONIC_ENDPOINT}"
-      - "SMTP_HOST=${SMTP_HOST}"
-      - "SMTP_PORT=${SMTP_PORT}"
-      - "SMTP_USERNAME=${SMTP_USERNAME}"
-      - "SMTP_PASSWORD=${SMTP_PASSWORD}"
-      - "PERMS_KEY=${PERMS_KEY}"
+      - "PHOTOMNEMONIC_ENDPOINT=https://80-meetfrontend-${REF_DOMAIN}/service/photomnemonic"
+      - "SMTP_HOST=mail.privateemail.com"                # User provided
+      - "SMTP_PORT=465"                                  # User provided
+      - "SMTP_USERNAME=${SMTP_USERNAME}"                 # User provided
+      - "SMTP_PASSWORD=${SMTP_PASSWORD}"                 # User provided
+      - "PERMS_KEY=${PERMS_KEY}"                         # User provided
     volumes:
       #- /workspace/data/reticulum_alpha/storage/:/ret/storage/
+      - type: bind
+        source: /DATA/AppData/$AppID/reticulum/storage
+        target: /ret/storage
       #- static-web-volume:/ret/storage/assets/
       - type: bind
-        source: /DATA/AppData/$AppID/reticulum
-        target: /ret/storage/
-      - type: bind
-        source: /DATA/AppData/$AppID/hubconf
-        target: /ret/hubconf
+        source: /DATA/AppData/$AppID/reticulum/assets
+        target: /ret/storage/assets
     depends_on:
       - db
     x-casaos:
       hidden: true
+      env: # All the User provided variables
+        - JWT_SECRET
+        - YOUTUBE_API_KEY
+        - UPLOAD_ENCRYPTION_KEY
+        - SMTP_HOST
+        - SMTP_PORT
+        - SMTP_USERNAME
+        - SMTP_PASSWORD
+        - PERMS_KEY
+      env_descriptions:
+        JWT_SECRET: >
+          Has to be generated (script or documentation), unique per user #base 64 ALG HS512
+        YOUTUBE_API_KEY: >
+          Has to be generated (script or documentation), unique per user
+        UPLOAD_ENCRYPTION_KEY: >
+          Has to be generated (script or documentation), unique per user
+        SMTP_HOST: >
+          User has to fill this (with documentation)
+        SMTP_PORT: >
+          User has to fill this (with documentation)
+        SMTP_USERNAME: >
+          User has to fill this (with documentation)
+        SMTP_PASSWORD: >
+          User has to fill this (with documentation)
+        PERMS_KEY: >
+          Has to be generated (script or documentation), unique per user - RSA 2048 key
       
   spoke:
     image: aptero/aptero-spoke:latest
