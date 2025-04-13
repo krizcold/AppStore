@@ -53,21 +53,20 @@ services:
       - webtraefik
     volumes:
       #- ./reverse_proxy_conf/nginx.conf:/etc/nginx/nginx.conf
-      - type: bind
-        source: /DATA/AppData/$AppID/reverse_proxy_conf/nginx.conf
-        target: /etc/nginx/nginx.conf
       #- ./reverse_proxy_conf/conf.d:/etc/nginx/conf.d/ 
       - type: bind
-        source: /DATA/AppData/$AppID/reverse_proxy_conf/conf.d
-        target: /etc/nginx/conf.d/
+        source: /DATA/AppData/$AppID/reverse_proxy_conf/nginx/
+        target: /etc/nginx/
       #- ./reverse_proxy_conf/ssl/:/etc/ssl/
-      - type: bind
-        source: /DATA/AppData/$AppID/reverse_proxy_conf/ssl
-        target: /etc/ssl/
       #- ./reverse_proxy_conf/access/:/etc/access/
       - type: bind
-        source: /DATA/AppData/$AppID/reverse_proxy_conf/access
+        source: /DATA/AppData/$AppID/reverse_proxy_conf/ssl/
+        target: /etc/ssl/
+      - type: bind
+        source: /DATA/AppData/$AppID/reverse_proxy_conf/access/
         target: /etc/access/
+      
+
     labels:
       - "traefik.enable=true"
       - "traefik.port=80"
