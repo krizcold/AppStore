@@ -54,9 +54,7 @@ services:
     volumes:
       #- ./reverse_proxy_conf/nginx.conf:/etc/nginx/nginx.conf
       #- ./reverse_proxy_conf/conf.d:/etc/nginx/conf.d/ 
-      - type: bind
-        source: /DATA/AppData/$AppID/reverse_proxy_conf/nginx/
-        target: /etc/nginx/
+      - reverse-proxy-conf-vol:/etc/nginx
       #- ./reverse_proxy_conf/ssl/:/etc/ssl/
       #- ./reverse_proxy_conf/access/:/etc/access/
       - type: bind
@@ -206,6 +204,7 @@ networks:
 
 volumes:
   static-web-volume:
+  reverse-proxy-conf-vol:
 
 x-casaos:
   architectures:
