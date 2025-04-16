@@ -187,7 +187,6 @@ x-casaos:
         -e REF_DOMAIN=${REF_DOMAIN} \
         -v /DATA/AppData/$AppID/hubconf:/app/hubconf \
         -v /DATA/AppData/$AppID/db:/var/lib/postgresql/data \
-
         aptero/aptero-services-initializer:latest
 #        -v /DATA/AppData/$AppID/templates:/app/templates \
         
