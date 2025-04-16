@@ -184,10 +184,12 @@ x-casaos:
   index: /
   webui_port: 80
   pre-install-cmd: >
-    docker run --rm
-    -e REF_DOMAIN=${REF_DOMAIN}
-    -v /DATA/AppData/meetfrontend/hubconf:/app/hubconf
-    -v /DATA/AppData/meetfrontend/db:/var/lib/postgresql/data
-    aptero/aptero-services-initializer:latest
-#        -v /DATA/AppData/meetfrontend/templates:/app/templates \
-        
+    sh -c '
+      mkdir -p /DATA/AppData/meetfrontend/hubconf &&
+      mkdir -p /DATA/AppData/meetfrontend/db &&
+      docker run --rm
+      -e REF_DOMAIN=${REF_DOMAIN}
+      -v /DATA/AppData/meetfrontend/hubconf:/app/hubconf
+      -v /DATA/AppData/meetfrontend/db:/var/lib/postgresql/data
+      aptero/aptero-services-initializer:latest
+    '
