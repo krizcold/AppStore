@@ -1,48 +1,6 @@
 name: meetfrontend
 
 services:           
-  initializer:
-    image: aptero/aptero-services-initializer:latest   # Custom initializer image
-    environment:
-      MAIN_DOMAIN: ${REF_DOMAIN}
-      REF_DOMAIN: ${REF_DOMAIN}
-      SHORTLINK_DOMAIN: "80-meetfrontend-${REF_DOMAIN}"
-      RETICULUM_SERVER: "80-meetfrontend-${REF_DOMAIN}"
-      API_360_TO_SCENE: "https://80-meetfrontend-${REF_DOMAIN}/service/360toscene/api/"
-      NON_CORS_PROXY_DOMAINS: "80-meetfrontend-${REF_DOMAIN},digitaloceanspaces.com,wowza.com"
-      CORS_PROXY_SERVER: "https://80-meetfrontend-${REF_DOMAIN}/cors"
-      DEFAULT_SCENE_SID: "h8xwUAc"
-      REMOTE_VM_SERVICE: "https://80-meetfrontend-${REF_DOMAIN}"
-      ROOM_TOKEN_SERVICE: "https://80-meetfrontend-${REF_DOMAIN}"
-      TEAMS_APP_ID: "934817ce-ddcc-48b6-9a8b-1f7ac5f654ce"
-      MICROSOFT_APP_ID: "c89c5d54-37ec-49d6-952a-befc9b770079"
-      MICROSOFT_APP_AUTHORITY: "https://login.microsoftonline.com/common"
-      APP_SOURCE_LINK: "https://80-meetfrontend-${REF_DOMAIN}/appsource/link"
-      APP_SOURCE_TEAMS_APP_LINK: "https://80-meetfrontend-${REF_DOMAIN}/teamsapplink"
-      SIGNIN_REDIRECT_URI: "https://80-meetfrontend-${REF_DOMAIN}/auth-end.html"
-      GLOBAL_ASSETS_PATH: "https://80-meetfrontend-${REF_DOMAIN}/data/global/"
-      LOGGER_URL: "https://80-meetfrontend-${REF_DOMAIN}/tracking"
-      LOGGER_ORIGIN: "meet-frontend-80-meetfrontend-${REF_DOMAIN}"
-      PRIVACY_LINK: "https://80-meetfrontend-${REF_DOMAIN}/privacy.html"
-      TERMS_LINK: "https://80-meetfrontend-${REF_DOMAIN}/terms.html"
-    volumes:
-      - type: bind
-        source: /DATA/AppData/$AppID/hubconf
-        target: /app/hubconf
-      - type: bind
-        source: /DATA/AppData/$AppID/db
-        target: /var/lib/postgresql/data
-    depends_on:
-      - db
-    x-casaos:
-      hidden: true
-      envs:
-        - container: PRIVACY_LINK
-          description:
-            en_us: "Privacy Policy link"
-        - container: TERMS_LINK
-          description:
-            en_us: "Terms of Service link"
 
   reverse_proxy:
     image: nginx:1.23.3
@@ -54,7 +12,9 @@ services:
     volumes:
       #- ./reverse_proxy_conf/nginx.conf:/etc/nginx/nginx.conf
       #- ./reverse_proxy_conf/conf.d:/etc/nginx/conf.d/ 
-      - reverse-proxy-conf-vol:/etc/nginx
+      - type: bind
+        source: /DATA/AppData/$AppID/reverse_proxy_conf/configs
+        target: /etc/nginx/
       #- ./reverse_proxy_conf/ssl/:/etc/ssl/
       #- ./reverse_proxy_conf/access/:/etc/access/
       - type: bind
@@ -204,7 +164,6 @@ networks:
 
 volumes:
   static-web-volume:
-  reverse-proxy-conf-vol:
 
 x-casaos:
   architectures:
@@ -224,3 +183,11 @@ x-casaos:
     en_us: "Aptero Meet"
   index: /
   webui_port: 80
+  pre-install-cmd: docker run --rm \
+        -e REF_DOMAIN=${REF_DOMAIN} \
+        -v /DATA/AppData/$AppID/hubconf:/app/hubconf \
+        -v /DATA/AppData/$AppID/db:/var/lib/postgresql/data \
+
+        aptero/aptero-services-initializer:latest
+#        -v /DATA/AppData/$AppID/templates:/app/templates \
+        
