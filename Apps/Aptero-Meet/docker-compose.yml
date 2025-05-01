@@ -54,10 +54,7 @@ services:
       - type: bind
         source: /DATA/AppData/$AppID/hubconf
         target: /usr/share/nginx/html/
-      #- /workspace/data/apterohub/data:/usr/share/nginx/html/data
-      - type: bind
-        source: /DATA/AppData/$AppID/hubconf/data
-        target: /usr/share/nginx/html/data
+      - /workspace/data/apterohub/data:/usr/share/nginx/html/data
       - static-web-volume:/usr/share/nginx/html/
 
   db:
