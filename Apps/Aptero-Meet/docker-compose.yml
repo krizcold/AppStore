@@ -12,12 +12,11 @@ services:
     volumes:
       #- ./reverse_proxy_conf/nginx.conf:/etc/nginx/nginx.conf
       #- ./reverse_proxy_conf/conf.d:/etc/nginx/conf.d/ 
-      #- type: bind
-      #  source: /DATA/AppData/$AppID/reverse_proxy_conf/configs
-      #  target: /etc/nginx/
+      - type: bind
+        source: /DATA/AppData/$AppID/reverse_proxy_conf/configs
+        target: /etc/nginx/
       #- ./reverse_proxy_conf/ssl/:/etc/ssl/
       #- ./reverse_proxy_conf/access/:/etc/access/
-      - reverse-proxy-conf-vol:/etc/nginx
       - type: bind
         source: /DATA/AppData/$AppID/reverse_proxy_conf/ssl/
         target: /etc/ssl/
@@ -51,7 +50,7 @@ services:
     volumes:
       - type: bind
         source: /DATA/AppData/$AppID/hubconf
-        target: /usr/share/nginx/html/hubconf
+        target: /usr/share/nginx/html/
       - /workspace/data/apterohub/data:/usr/share/nginx/html/data
       - static-web-volume:/usr/share/nginx/html/
 
@@ -105,6 +104,7 @@ services:
       - type: bind
         source: /DATA/AppData/$AppID/reticulum/storage
         target: /ret/storage
+        # Reminder: we need to have /assets and /dev inside /ret/storage
       - static-web-volume:/ret/storage/assets/
       #- type: bind
       #  source: /DATA/AppData/$AppID/reticulum/assets
