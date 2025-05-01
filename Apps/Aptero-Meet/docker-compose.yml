@@ -51,7 +51,7 @@ services:
       - "80"
     restart: unless-stopped
     volumes:
-      - ./hubconf/properties.js:/usr/share/nginx/html/properties.js
+      - /DATA/AppData/$AppID/hubconf/properties.js:/usr/share/nginx/html/properties.js
       - /workspace/data/apterohub/data:/usr/share/nginx/html/data
       - static-web-volume:/usr/share/nginx/html/
 
@@ -158,8 +158,8 @@ services:
     volumes:
       #- ./spokeconf/properties.js:/usr/share/nginx/html/properties.js
       - type: bind
-        source: /DATA/AppData/$AppID/spokeconf/
-        target: /usr/share/nginx/html/
+        source: /DATA/AppData/$AppID/spokeconf/properties.js
+        target: /usr/share/nginx/html/properties.js
 
 networks:
   webtraefik:
