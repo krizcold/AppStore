@@ -51,10 +51,9 @@ services:
       - "80"
     restart: unless-stopped
     volumes:
-      - type: bind
-        source: /DATA/AppData/$AppID/hubconf
-        target: /usr/share/nginx/html/hubconf
+      - ./hubconf/properties.js:/usr/share/nginx/html/properties.js
       - /workspace/data/apterohub/data:/usr/share/nginx/html/data
+      - static-web-volume:/usr/share/nginx/html/
 
   db:
     networks:
