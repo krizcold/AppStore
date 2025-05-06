@@ -54,7 +54,7 @@ services:
       - /DATA/AppData/$AppID/hubconf/properties.js:/usr/share/nginx/html/properties.js
       #- /workspace/data/apterohub/data:/usr/share/nginx/html/data
       - /DATA/AppData/$AppID/hubconf/data:/usr/share/nginx/html/data
-      - static-web-volume:/usr/share/nginx/html/
+      #- static-web-volume:/usr/share/nginx/html/ TEST HAVING THIS DISABLED
 
   db:
     networks:
