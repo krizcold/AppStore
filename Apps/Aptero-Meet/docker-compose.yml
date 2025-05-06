@@ -187,8 +187,8 @@ x-casaos:
     en_us: "Aptero Meet"
   index: /
   webui_port: 80
-  #pre-install-cmd: sh -c "mkdir -p ${DATA_ROOT}/AppData/meetfrontend/spokeconf && mkdir -p ${DATA_ROOT}/AppData/meetfrontend/hubconf && mkdir -p ${DATA_ROOT}/AppData/meetfrontend/db && mkdir -p ${DATA_ROOT}/AppData/meetfrontend/reverse_proxy_conf && docker run --rm -e REF_DOMAIN=${REF_DOMAIN} -v ${DATA_ROOT}/AppData/meetfrontend/hubconf:/app/hubconf -v ${DATA_ROOT}/AppData/meetfrontend/db:/var/lib/postgresql/data -v ${DATA_ROOT}/AppData/meetfrontend/reverse_proxy_conf:/app/reverse_proxy_conf aptero/aptero-services-initializer:latest"
-  pre-install-cmd: sh -c "mkdir -p ${DATA_ROOT}/AppData/meetfrontend/spokeconf && mkdir -p ${DATA_ROOT}/AppData/meetfrontend/hubconf && mkdir -p ${DATA_ROOT}/AppData/meetfrontend/db && docker run --rm -e REF_DOMAIN=${REF_DOMAIN} -v ${DATA_ROOT}/AppData/meetfrontend/spokeconf:/app/spokeconf -v ${DATA_ROOT}/AppData/meetfrontend/hubconf:/app/hubconf -v ${DATA_ROOT}/AppData/meetfrontend/db:/var/lib/postgresql/data aptero/aptero-services-initializer:latest"
+  pre-install-cmd: sh -c "mkdir -p ${DATA_ROOT}/AppData/meetfrontend/spokeconf && mkdir -p ${DATA_ROOT}/AppData/meetfrontend/hubconf && mkdir -p ${DATA_ROOT}/AppData/meetfrontend/db && mkdir -p ${DATA_ROOT}/AppData/meetfrontend/reverse_proxy_conf && docker run --rm -e REF_DOMAIN=${REF_DOMAIN} -v ${DATA_ROOT}/AppData/meetfrontend/hubconf:/app/hubconf -v ${DATA_ROOT}/AppData/meetfrontend/db:/var/lib/postgresql/data -v ${DATA_ROOT}/AppData/meetfrontend/reverse_proxy_conf:/app/reverse_proxy_conf aptero/aptero-services-initializer:latest"
+  #pre-install-cmd: sh -c "mkdir -p ${DATA_ROOT}/AppData/meetfrontend/spokeconf && mkdir -p ${DATA_ROOT}/AppData/meetfrontend/hubconf && mkdir -p ${DATA_ROOT}/AppData/meetfrontend/db && docker run --rm -e REF_DOMAIN=${REF_DOMAIN} -v ${DATA_ROOT}/AppData/meetfrontend/spokeconf:/app/spokeconf -v ${DATA_ROOT}/AppData/meetfrontend/hubconf:/app/hubconf -v ${DATA_ROOT}/AppData/meetfrontend/db:/var/lib/postgresql/data aptero/aptero-services-initializer:latest"
 
 
 
