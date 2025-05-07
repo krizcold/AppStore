@@ -10,24 +10,18 @@ services:
     networks:
       - webtraefik
     volumes:
-      #- ./reverse_proxy_conf/nginx.conf:/etc/nginx/nginx.conf
       - type: bind
         source: /DATA/AppData/$AppID/reverse_proxy_conf/nginx.conf
         target: /etc/nginx/nginx.conf
-      #- ./reverse_proxy_conf/conf.d:/etc/nginx/conf.d/
       - type: bind
         source: /DATA/AppData/$AppID/reverse_proxy_conf/conf.d/
         target: /etc/nginx/conf.d/
-      #- ./reverse_proxy_conf/ssl/:/etc/ssl/
-      #- ./reverse_proxy_conf/access/:/etc/access/
       - type: bind
         source: /DATA/AppData/$AppID/reverse_proxy_conf/ssl/
         target: /etc/ssl/
       - type: bind
         source: /DATA/AppData/$AppID/reverse_proxy_conf/access/
         target: /etc/access/
-      
-
     labels:
       - "traefik.enable=true"
       - "traefik.port=80"
@@ -52,25 +46,23 @@ services:
     restart: unless-stopped
     volumes:
       - /DATA/AppData/$AppID/hubconf/properties.js:/usr/share/nginx/html/properties.js
-      #- /workspace/data/apterohub/data:/usr/share/nginx/html/data
       - /DATA/AppData/$AppID/hubconf/data:/usr/share/nginx/html/data
-      - static-web-volume:/usr/share/nginx/html/ #TEST HAVING THIS DISABLED
+      - static-web-volume:/usr/share/nginx/html/
 
   db:
-    networks:
-      - webtraefik
     hostname: db
     image: postgres:10
     command: postgres -c 'max_connections=250'
     expose:
       - "5432"
     restart: unless-stopped
+    networks:
+      - webtraefik
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: ret_prod
     volumes:
-      #- /workspace/data/reticulum_alpha/db/:/var/lib/postgresql/data
       - type: bind
         source: /DATA/AppData/$AppID/db
         target: /var/lib/postgresql/data
@@ -152,12 +144,10 @@ services:
       - "traefik.enable=true"
       - "traefik.port=80"
       - "traefik.docker.network=webtraefik"
-      #- "traefik.frontend.rule=Host:alphahub.aptero.co;PathPrefixStrip:/opal/"   
       - "traefik.frontend.rule=Host:80-meetfrontend-${REF_DOMAIN};PathPrefixStrip:/opal/"
       - "traefik.frontend.headers.SSLRedirect=true"
       - "traefik.frontend.entryPoints=http,https"
     volumes:
-      #- ./spokeconf/properties.js:/usr/share/nginx/html/properties.js
       - type: bind
         source: /DATA/AppData/$AppID/spokeconf/properties.js
         target: /usr/share/nginx/html/properties.js
@@ -173,7 +163,7 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  main: meetfrontend
+  main: reverse_proxy
   author: Aptero
   developer: Aptero
   icon: "https://github.com/krizcold/AppStore/blob/main/Apps/Aptero-Meet/icon.png?raw=true"
