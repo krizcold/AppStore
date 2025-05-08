@@ -47,17 +47,11 @@ services:
     volumes:
       - /DATA/AppData/$AppID/hubconf/properties.js:/usr/share/nginx/html/properties.js
       - /DATA/AppData/$AppID/hubconf/data:/usr/share/nginx/html/data
-      - static-web-volume:/usr/share/nginx/html/
+      #- static-web-volume:/usr/share/nginx/html/
 
   db:
     hostname: db
     image: postgres:10
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
     command: postgres -c 'max_connections=250'
     expose:
       - "5432"
@@ -110,8 +104,7 @@ services:
       #  source: /DATA/AppData/$AppID/reticulum/assets
       #  target: /ret/storage/assets
     depends_on:
-      - db:
-        condition: service_healthy
+      - db
     x-casaos:
       hidden: true
       envs:
