@@ -41,7 +41,6 @@ services:
   meetfrontend:
     hostname: meetfrontend
     image: aptero/aptero-hub:latest
-    command: sh -c "mix deps.get && mix phx.server"
     networks:
       - webtraefik
     expose:
