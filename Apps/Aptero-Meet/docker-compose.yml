@@ -10,6 +10,7 @@ services:
     networks:
       - webtraefik
     volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - type: bind
         source: /DATA/AppData/$AppID/reverse_proxy_conf/nginx.conf
         target: /etc/nginx/nginx.conf
@@ -32,6 +33,7 @@ services:
     depends_on:
       - db
       - meetfrontend
+      - spoke
       - reticulum
     x-casaos:
       hidden: true
