@@ -5,7 +5,7 @@ services:
   reverse_proxy:
     image: nginx:1.23.3
     expose:
-      - "80"
+      - "8080:80"
     restart: unless-stopped
     networks:
       - webtraefik
@@ -53,6 +53,12 @@ services:
   db:
     hostname: db
     image: postgres:10
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
     command: postgres -c 'max_connections=250'
     expose:
       - "5432"
