@@ -5,7 +5,7 @@ services:
   reverse_proxy:
     image: nginx:1.23.3
     expose:
-      - "8080:80"
+      - "80"
     restart: unless-stopped
     networks:
       - webtraefik
