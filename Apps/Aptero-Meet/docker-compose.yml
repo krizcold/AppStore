@@ -48,6 +48,7 @@ services:
     volumes:
       - /DATA/AppData/$AppID/hubconf/properties.js:/usr/share/nginx/html/properties.js
       - /DATA/AppData/$AppID/hubconf/data:/usr/share/nginx/html/data
+      - /DATA/AppData/$AppID/hubconf/schema.toml:/usr/share/nginx/html/schema.toml
       #- static-web-volume:/usr/share/nginx/html/
 
   db:
