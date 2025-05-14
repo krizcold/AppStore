@@ -29,7 +29,7 @@ x-casaos:
   main: typescript-modular-discord-bot
   author: kriz_cold
   developer: kriz_cold
-  icon: https://github.com/krizcold/AppStore/blob/main/Apps/typescript-modular-discord-bot/icon.png?raw=true
+  icon: https://github.com/krizcold/AppStore/blob/main/Apps/Typescript-Modular-Discord-Bot/icon.png?raw=true
   tagline:
     en_us: "A flexible Discord bot framework"
   category: Chat
