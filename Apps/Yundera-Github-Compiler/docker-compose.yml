@@ -64,4 +64,4 @@ x-casaos:
   store_app_id: yundera-github-compiler
   is_uncontrolled: false
   index: /
-  webui_port: 80
+  webui_port: 3000
