@@ -62,9 +62,5 @@ x-casaos:
   title:
     en_us: "Yundera GitHub Compiler"
   
-  # This section is now corrected based on your examples
-  hostname: "yundera-github-compiler-${REF_DOMAIN}"
-  scheme: "http"
   index: /
-  port_map: "3000" # Match the port our app's UI server runs on
-  
+  webui_port: 3000
