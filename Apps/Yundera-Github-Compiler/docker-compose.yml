@@ -61,8 +61,7 @@ x-casaos:
     en_us: "Clone, build, and run Docker-based projects directly from GitHub URLs."
   title:
     en_us: "Yundera GitHub Compiler"
-  store_app_id: "yundera-github-compiler"
-  hostname: "yundera-github-compiler-${REF_DOMAIN}"
+  store_app_id: yundera-github-compiler
   is_uncontrolled: false
   index: /
   webui_port: 80
