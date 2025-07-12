@@ -1,0 +1,70 @@
+name: yundera-github-compiler
+
+services:
+  yundera-github-compiler:
+    image: krizcold/yundera-github-compiler:latest
+    container_name: yundera-github-compiler
+    restart: unless-stopped
+    expose:
+      - "3000" # Expose the port the UI server listens on
+    environment:
+      # Simply add one line per repo:
+      REPO_0: "https://<TOKEN>@github.com/yourorg/private-repo-1.git"
+      #REPO_1: "https://<TOKEN>@github.com/yourorg/private-repo-2.git"
+      # Optional: disable auto-update on a per-repo basis
+      REPO_0_AUTOUPDATE: "true"
+
+      DIAG_COMMAND: ""
+
+      UPDATE_INTERVAL: "3600"
+      FORCE_UPDATE_GLOBAL: "true"
+      WEBUI_PORT: "3000"
+
+    volumes:
+      # allow the compiler to launch docker
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+
+      # cloned repos
+      - type: bind
+        source: /DATA/AppData/yundera-github-compiler/repos
+        target: /app/repos
+
+    # Connect to the same network as the CasaOS service
+    networks:
+      - pcs
+
+    x-casaos:
+      volumes:
+        - container: /app/repos
+          description:
+            en_us: "Git repos are cloned here."
+
+# Define the network as external, since it's created by the main NSL stack
+networks:
+  pcs:
+    external: true
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: yundera-github-compiler
+  author: krizcold
+  developer: krizcold
+  icon: https://github.com/krizcold/Yundera-Github-Compiler/blob/main/YunderaCompiler.png?raw=true
+  tagline:
+    en_us: "Automatically build and deploy GitHub repos on Yundera"
+  category: Utilities
+  description:
+    en_us: "Clone, build, and run Docker-based projects directly from GitHub URLs."
+  title:
+    en_us: "Yundera GitHub Compiler"
+  
+  # This section is now corrected based on your examples
+  hostname: "yundera-github-compiler-${REF_DOMAIN}"
+  scheme: "http"
+  index: /
+  port_map: "3000" # Match the port our app's UI server runs on
+  
