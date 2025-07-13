@@ -1,7 +1,7 @@
-name: yundera-github-compiler
+name: yunderagithubcompiler
 
 services:
-  yundera-github-compiler:
+  yunderagithubcompiler:
     image: krizcold/yundera-github-compiler:latest
     container_name: yundera-github-compiler
     restart: unless-stopped
@@ -50,7 +50,7 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  main: yundera-github-compiler
+  main: yunderagithubcompiler
   author: krizcold
   developer: krizcold
   icon: https://github.com/krizcold/Yundera-Github-Compiler/blob/main/YunderaCompiler.png?raw=true
@@ -61,7 +61,7 @@ x-casaos:
     en_us: "Clone, build, and run Docker-based projects directly from GitHub URLs."
   title:
     en_us: "Yundera GitHub Compiler"
-  store_app_id: yundera-github-compiler
+  store_app_id: yunderagithubcompiler
   is_uncontrolled: false
   index: /
-  webui_port: 3000 # Tell CasaOS our app's actual port
+  webui_port: 3000
