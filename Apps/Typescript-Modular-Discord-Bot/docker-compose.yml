@@ -1,7 +1,7 @@
-name: typescript-modular-discord-bot
+name: typescriptmodulardiscordbot
 
 services:
-  typescript-modular-discord-bot:
+  typescriptmodulardiscordbot:
     image: krizcold/typescript-modular-discord-bot:latest
     container_name: typescript-modular-discord-bot
     restart: unless-stopped
@@ -11,7 +11,7 @@ services:
       CLIENT_ID: 'REPLACE WITH THE BOT CLIENT ID'
     volumes:
       - type: bind
-        source: /DATA/AppData/$AppID/smdb-source
+        source: /DATA/AppData/typescript-modular-discord-bot/smdb-source/
         target: /app/smdb-source
     network_mode: bridge
     expose:
@@ -26,7 +26,7 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  main: typescript-modular-discord-bot
+  main: typescriptmodulardiscordbot
   author: kriz_cold
   developer: kriz_cold
   icon: https://github.com/krizcold/AppStore/blob/main/Apps/Typescript-Modular-Discord-Bot/icon.png?raw=true
