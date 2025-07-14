@@ -43,6 +43,11 @@ services:
         source: /DATA/AppData/yunderagithubcompiler/repos
         target: /app/repos
 
+      # test
+      - type: bind
+        source: /DATA/AppData/yunderagithubcompiler/
+        target: /app/test/
+
       # Mount DATA and dev directories as read-only
       - type: bind
         source: /DATA
