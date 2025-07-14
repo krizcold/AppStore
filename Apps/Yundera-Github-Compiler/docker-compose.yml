@@ -5,6 +5,8 @@ services:
     image: krizcold/yundera-github-compiler:latest
     container_name: yunderagithubcompiler
     restart: unless-stopped
+    group_add:
+      - "999"  # Common docker group ID
     expose:
       - "3000"
     entrypoint: ["/bin/sh"]
@@ -12,6 +14,11 @@ services:
       - -c
       - |
         chmod 644 /app/casaos-config/docker-compose.yml || true
+        # Check if docker socket exists and test permissions
+        if [ -S /var/run/docker.sock ]; then
+          echo "🔍 Docker socket found, testing access..."
+          docker --version && echo "✅ Docker access works" || echo "❌ Docker access failed"
+        fi
         npm run setup
     environment:
       # --> GitHub token for repository access
