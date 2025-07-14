@@ -66,15 +66,22 @@ services:
           echo "📄 File contents preview:"
           head -20 "$$COMPOSE_FILE"
           
-          # Check if docker.sock is already mounted
-          if ! grep -q "/var/run/docker.sock" "$$COMPOSE_FILE"; then
+          # Define parts of the string to search for and insert.
+          # This prevents grep from finding the string inside this script block.
+          PART1="docker"
+          PART2=".sock"
+          SEARCH_STRING="source: /var/run/$$PART1$$PART2"
+          INSERT_PATH="/var/run/$$PART1$$PART2"
+
+          # Check if docker.sock is already mounted.
+          if ! grep -q "$$SEARCH_STRING" "$$COMPOSE_FILE"; then
             echo "📝 Adding Docker socket mount to compose file..."
             
             # Create backup
             cp "$$COMPOSE_FILE" "$$COMPOSE_FILE.backup"
             
             # Add docker socket mount after the volumes: line
-            sed -i '/volumes:/a\      - type: bind\n        source: /var/run/docker.sock\n        target: /var/run/docker.sock' "$$COMPOSE_FILE"
+            sed -i "/volumes:/a\\      - type: bind\n        source: $$INSERT_PATH\n        target: $$INSERT_PATH" "$$COMPOSE_FILE"
             
             echo "✅ Docker socket mount added successfully"
             echo "📄 Updated file preview:"
