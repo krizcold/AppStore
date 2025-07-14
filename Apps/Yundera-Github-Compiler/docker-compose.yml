@@ -37,17 +37,21 @@ services:
         
         echo "🔍 Checking for compose file at $COMPOSE_FILE..."
         
-        # Check if file exists but may have permission issues
+        # Debug file existence and permissions
+        echo "🔧 Debug info:"
+        echo "File exists check: $([ -e "$COMPOSE_FILE" ] && echo 'YES' || echo 'NO')"
+        echo "File readable check: $([ -r "$COMPOSE_FILE" ] && echo 'YES' || echo 'NO')"
+        
+        # Fix permissions first if file exists
         if [ -e "$COMPOSE_FILE" ]; then
           echo "✅ Found docker-compose.yml file"
-          echo "🔐 Checking file permissions..."
+          echo "🔐 Current file permissions:"
           ls -la "$COMPOSE_FILE"
           
-          # Fix permissions if needed
-          if [ ! -r "$COMPOSE_FILE" ]; then
-            echo "📝 Fixing file permissions..."
-            chmod 644 "$COMPOSE_FILE"
-          fi
+          echo "📝 Fixing file permissions..."
+          chmod 644 "$COMPOSE_FILE"
+          echo "🔐 Updated file permissions:"
+          ls -la "$COMPOSE_FILE"
           
           echo "📄 File contents preview:"
           head -20 "$COMPOSE_FILE"
@@ -75,9 +79,7 @@ services:
             echo "✅ Docker socket mount already present"
           fi
         else
-          echo "❌ Docker compose file not found after waiting, continuing without Docker socket..."
-          echo "🔍 Let's see what's actually in /app/casaos-config:"
-          ls -la /app/casaos-config/ 2>/dev/null || echo "Directory is empty or doesn't exist"
+          echo "❌ File truly doesn't exist - this shouldn't happen based on the directory listing"
         fi
         
         echo "🚀 Starting Yundera GitHub Compiler..."
