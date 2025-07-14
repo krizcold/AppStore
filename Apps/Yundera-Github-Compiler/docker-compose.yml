@@ -129,7 +129,7 @@ services:
       #  read_only: true
         
       # Add device access (same as CasaOS container)
-      - type: bind
+      #- type: bind
       #  source: /dev
       #  target: /dev
       #  read_only: true
