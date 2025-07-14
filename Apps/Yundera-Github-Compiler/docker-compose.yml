@@ -26,39 +26,42 @@ services:
         fi
         
         # Mount /DATA as read-only
-        echo '📁 Mounting /DATA as read-only...'
-        if sudo mount --bind /DATA /DATA 2>/dev/null || mount --bind /DATA /DATA; then
-          if sudo mount -o remount,ro,bind /DATA 2>/dev/null || mount -o remount,ro,bind /DATA; then
-            echo '✅ /DATA mounted read-only'
-          else
-            echo '⚠️  Failed to remount /DATA as read-only'
-          fi
+        echo '📁 Mounting /DATA...'
+        if mount --bind /DATA /DATA && mount -o remount,ro /DATA; then
+          echo '✅ /DATA mounted read-only'
         else
-          echo '⚠️  Failed to mount /DATA'
+          echo '❌ Failed to mount /DATA as read-only'
+          exit 1
         fi
         
-        # Mount /dev as read-only  
-        echo '📁 Mounting /dev as read-only...'
-        if sudo mount --bind /dev /dev 2>/dev/null || mount --bind /dev /dev; then
-          if sudo mount -o remount,ro,bind /dev 2>/dev/null || mount -o remount,ro,bind /dev; then
-            echo '✅ /dev mounted read-only'
-          else
-            echo '⚠️  Failed to remount /dev as read-only'
-          fi
+        # Mount /dev as read-only
+        echo '📁 Mounting /dev...'
+        if mount --bind /dev /dev && mount -o remount,ro /dev; then
+          echo '✅ /dev mounted read-only'
         else
-          echo '⚠️  Failed to mount /dev'
+          echo '❌ Failed to mount /dev as read-only'
+          exit 1
         fi
         
         # Mount docker socket if available
         if [ -S /var/run/docker.sock ]; then
           echo '📁 Mounting docker.sock...'
-          if sudo mount --bind /var/run/docker.sock /var/run/docker.sock 2>/dev/null || mount --bind /var/run/docker.sock /var/run/docker.sock; then
+          if mount --bind /var/run/docker.sock /var/run/docker.sock; then
             echo '✅ docker.sock mounted'
           else
             echo '⚠️  Failed to mount docker.sock'
           fi
         else
-          echo '⚠️  Docker socket not found - will try to access via network'
+          echo '⚠️  Docker socket not found'
+        fi
+        
+        # Verify read-only mounts
+        echo '🔍 Verifying read-only status...'
+        if ! touch /DATA/test 2>/dev/null && ! touch /dev/test 2>/dev/null; then
+          echo '✅ Mounts verified read-only'
+        else
+          echo '❌ Mount verification failed'
+          exit 1
         fi
         
         echo '✅ Volume mount setup complete'
