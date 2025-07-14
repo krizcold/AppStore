@@ -35,8 +35,8 @@ services:
     volumes:
       # allow the compiler to launch docker
       - type: bind
-        source: /var/run/
-        target: /var/run/
+        source: /run
+        target: /var/run
 
       # cloned repos
       - type: bind
