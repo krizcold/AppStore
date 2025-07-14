@@ -11,74 +11,46 @@ services:
     command:
       - -c
       - |
-        echo "🔧 Checking and adding Docker socket mount..."
-        
-        # Wait a bit for everything to settle
-        echo "⏳ Waiting 10 seconds for CasaOS to finish setup..."
-        sleep 10
+        set -e
+        echo "🔧 Checking for Docker socket mount..."
+        sleep 5
         
         COMPOSE_FILE="/app/casaos-config/docker-compose.yml"
         
-        # Basic file checks
-        if [ ! -f "$$COMPOSE_FILE" ]; then
-          echo "❌ Cannot find $$COMPOSE_FILE. Something is wrong with the volume mounts."
-          sleep 300 # Sleep to allow for inspection
+        if [ ! -f "$COMPOSE_FILE" ]; then
+          echo "❌ FATAL: Cannot find $COMPOSE_FILE. Check volume mounts."
+          sleep 3600
           exit 1
         fi
         
-        echo "✅ Found docker-compose.yml file."
-        echo "🔐 Fixing file permissions..."
-        chmod 644 "$$COMPOSE_FILE"
-        
-        echo "📄 File contents preview:"
-        head -n 30 "$$COMPOSE_FILE"
-        
-        # Define parts of the string to search for to prevent grep self-detection.
-        PART1="docker"
-        PART2=".sock"
-        SOCK_PATH="/var/run/$$PART1$$PART2"
-        SEARCH_STRING="source: $$SOCK_PATH"
-        
-        # Check if the docker socket mount already exists.
-        if ! grep -q "$$SEARCH_STRING" "$$COMPOSE_FILE"; then
+        # We use grep with a character class '[d]ocker.sock' so that grep does not find this literal string
+        # in the awk command below, which would cause a false positive.
+        if ! grep -q "source: /var/run/[d]ocker.sock" "$COMPOSE_FILE"; then
           echo "📝 Docker socket mount not found. Adding it now..."
-          
-          # Create backup
-          cp "$$COMPOSE_FILE" "$$COMPOSE_FILE.backup"
-
-          # Create a temporary file with the exact YAML block to insert.
-          printf '%s\n' '      - type: bind' "        source: $$SOCK_PATH" "        target: $$SOCK_PATH" > /tmp/volume_to_add.txt
-
-          # Use a robust awk script to insert the volume mount.
-          # This prints every line, and when it finds 'volumes:', it also prints our text block.
-          # The output is sent to a new temp file to avoid corruption.
-          awk '/volumes:/ {print; system("cat /tmp/volume_to_add.txt"); next} {print}' "$$COMPOSE_FILE" > "$$COMPOSE_FILE.tmp"
-
-          # Verify the temp file was created and is not empty before replacing the original.
-          if [ -s "$$COMPOSE_FILE.tmp" ]; then
-            mv "$$COMPOSE_FILE.tmp" "$$COMPOSE_FILE"
-            echo "✅ Docker socket mount added successfully."
-          else
-            echo "❌ ERROR: Failed to create modified compose file. Restoring from backup."
-            cp "$$COMPOSE_FILE.backup" "$$COMPOSE_FILE"
-            exit 1
-          fi
-
-          # Clean up the temporary file
-          rm /tmp/volume_to_add.txt
-          
+        
+          # Create a backup.
+          cp "$COMPOSE_FILE" "$COMPOSE_FILE.backup"
+        
+          # Use a single, robust awk command to find the 'volumes:' line and insert our text block directly after it.
+          # This is safer than sed for multi-line insertions. The output is written to a temp file.
+          awk '1; /^[[:space:]]*volumes:[[:space:]]*$$/ { printf "      - type: bind\n        source: /var/run/docker.sock\n        target: /var/run/docker.sock\n" }' "$COMPOSE_FILE" > "$COMPOSE_FILE.tmp"
+        
+          # Atomically replace the old file with the new, correctly modified one.
+          mv "$COMPOSE_FILE.tmp" "$COMPOSE_FILE"
+        
+          echo "✅ Docker socket mount added successfully."
           echo "📄 Updated file preview:"
-          grep -A 10 "volumes:" "$$COMPOSE_FILE"
-          
-          echo "🔄 Restarting container to apply changes..."
-          docker-compose -f "$$COMPOSE_FILE" restart yunderagithubcompiler
+          grep -A 5 "volumes:" "$COMPOSE_FILE"
+        
+          # Exit cleanly. The 'restart: unless-stopped' policy will automatically restart the container,
+          # which is the safest way to apply the new docker-compose.yml configuration.
+          echo "🔄 Exiting to allow Docker to restart the container with the new volume."
           exit 0
-        else
-          echo "✅ Docker socket mount already present."
         fi
         
+        echo "✅ Docker socket mount is present."
         echo "🚀 Starting Yundera GitHub Compiler..."
-        npm run start
+        exec npm run start
     environment:
       # --> GitHub token for repository access
       # REPO_0: "https://<TOKEN>@github.com/yourorg/private-repo-1.git"
