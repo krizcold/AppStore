@@ -12,7 +12,7 @@ services:
       - -c
       - |
         echo "🔧 Checking and adding Docker socket mount..."
-        COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
+        COMPOSE_FILE="/app/casaos-config/docker-compose.yml"
         
         # Wait for the compose file to be created
         timeout=60
@@ -78,6 +78,11 @@ services:
       - type: bind
         source: /DATA/AppData/yunderagithubcompiler/repos
         target: /app/repos
+
+      # Mount our app directory as read-write to modify compose file
+      - type: bind
+        source: /DATA/AppData/casaos/apps/yunderagithubcompiler
+        target: /app/casaos-config
 
       # Mount DATA directory as read-only
       - type: bind
