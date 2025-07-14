@@ -35,13 +35,7 @@ services:
         
         COMPOSE_FILE="/app/casaos-config/docker-compose.yml"
         
-        # Wait for the compose file to be created
-        timeout=120
-        while [ ! -f "$COMPOSE_FILE" ] && [ $timeout -gt 0 ]; do
-          echo "⏳ Waiting for compose file at $COMPOSE_FILE... (${timeout}s remaining)"
-          sleep 5
-          timeout=$((timeout - 5))
-        done
+        echo "🔍 Checking for compose file at $COMPOSE_FILE..."
         
         # Check if file exists but may have permission issues
         if [ -e "$COMPOSE_FILE" ]; then
