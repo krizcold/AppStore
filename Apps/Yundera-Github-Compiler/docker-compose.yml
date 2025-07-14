@@ -25,34 +25,53 @@ services:
           echo '⚠️  Not running as root, attempting sudo...'
         fi
         
-        # Mount /DATA as read-only
+        # Try to access host filesystem and mount directories
+        echo '📁 Setting up host filesystem access...'
+        
+        # For AppStore, we need to detect where the host filesystem is mounted
+        # Check common mount points
+        HOST_ROOT=""
+        if [ -d "/host" ]; then
+          HOST_ROOT="/host"
+        elif [ -d "/hostfs" ]; then
+          HOST_ROOT="/hostfs"
+        elif [ -d "/mnt/host" ]; then
+          HOST_ROOT="/mnt/host"
+        else
+          echo '❌ Cannot find host filesystem mount point'
+          echo 'Available mount points:'
+          mount | grep -v tmpfs | grep -v proc | head -5
+          exit 1
+        fi
+        
+        echo "📁 Using host root: $HOST_ROOT"
+        
+        # Mount /DATA from host
         echo '📁 Mounting /DATA...'
-        if mount --bind /DATA /DATA && mount -o remount,ro /DATA; then
+        mkdir -p /DATA
+        if mount --bind "$HOST_ROOT/DATA" /DATA && mount -o remount,ro /DATA; then
           echo '✅ /DATA mounted read-only'
         else
-          echo '❌ Failed to mount /DATA as read-only'
+          echo '❌ Failed to mount /DATA'
           exit 1
         fi
         
-        # Mount /dev as read-only
+        # Mount /dev from host
         echo '📁 Mounting /dev...'
-        if mount --bind /dev /dev && mount -o remount,ro /dev; then
+        if mount --bind "$HOST_ROOT/dev" /dev && mount -o remount,ro /dev; then
           echo '✅ /dev mounted read-only'
         else
-          echo '❌ Failed to mount /dev as read-only'
+          echo '❌ Failed to mount /dev'
           exit 1
         fi
         
-        # Mount docker socket if available
-        if [ -S /var/run/docker.sock ]; then
-          echo '📁 Mounting docker.sock...'
-          if mount --bind /var/run/docker.sock /var/run/docker.sock; then
-            echo '✅ docker.sock mounted'
-          else
-            echo '⚠️  Failed to mount docker.sock'
-          fi
+        # Mount docker socket
+        echo '📁 Mounting docker socket...'
+        mkdir -p /var/run
+        if mount --bind "$HOST_ROOT/var/run/docker.sock" /var/run/docker.sock 2>/dev/null; then
+          echo '✅ docker.sock mounted'
         else
-          echo '⚠️  Docker socket not found'
+          echo '⚠️  Docker socket not available'
         fi
         
         # Verify read-only mounts
@@ -93,7 +112,7 @@ services:
       REF_NET: "pcs"
 
     volumes:
-      # allow the compiler to launch docker
+      # allow the compiler to launch docker (commented - AppStore cleans bind mounts)
       #- type: bind
       #  source: /var/run/docker.sock
       #  target: /var/run/docker.sock
@@ -110,7 +129,7 @@ services:
       #  read_only: true
         
       # Add device access (same as CasaOS container)
-      #- type: bind
+      - type: bind
       #  source: /dev
       #  target: /dev
       #  read_only: true
