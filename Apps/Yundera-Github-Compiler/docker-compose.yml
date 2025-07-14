@@ -60,9 +60,9 @@ services:
       REF_NET: "pcs"
 
     volumes:
-      # allow the compiler to launch docker
+      # allow the compiler to launch docker (prepared by pre-install-cmd)
       - type: bind
-        source: /var/run/docker.sock
+        source: /tmp/yundera-mounts/docker/docker.sock
         target: /var/run/docker.sock
 
       # cloned repos
@@ -113,11 +113,13 @@ networks:
 x-casaos:
   pre-install-cmd: |
     docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /DATA:/DATA -v /dev:/dev -v /tmp:/tmp --privileged ubuntu:22.04 sh -c "
-      mkdir -p /tmp/yundera-mounts/DATA /tmp/yundera-mounts/dev &&
+      mkdir -p /tmp/yundera-mounts/DATA /tmp/yundera-mounts/dev /tmp/yundera-mounts/docker &&
       mount --bind /DATA /tmp/yundera-mounts/DATA &&
       mount -o remount,ro,bind /tmp/yundera-mounts/DATA &&
       mount --bind /dev /tmp/yundera-mounts/dev &&
-      mount -o remount,ro,bind /tmp/yundera-mounts/dev
+      mount -o remount,ro,bind /tmp/yundera-mounts/dev &&
+      cp /var/run/docker.sock /tmp/yundera-mounts/docker/docker.sock &&
+      chmod 666 /tmp/yundera-mounts/docker/docker.sock
     "
   architectures:
     - amd64
