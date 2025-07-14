@@ -7,6 +7,20 @@ services:
     restart: unless-stopped
     expose:
       - "3000"
+    command: >
+      sh -c "
+        echo '🔧 Setting up volume mounts for AppStore compatibility...' &&
+        mkdir -p /DATA /dev &&
+        echo '📁 Mounting /DATA as read-only...' &&
+        mount --bind /DATA /DATA &&
+        mount -o remount,ro /DATA &&
+        echo '📁 Mounting /dev as read-only...' &&
+        mount --bind /dev /dev &&
+        mount -o remount,ro /dev &&
+        echo '✅ Volume mounts complete' &&
+        echo '🚀 Starting Yundera GitHub Compiler...' &&
+        npm run start
+      "
     environment:
       # --> GitHub token for repository access
       # REPO_0: "https://<TOKEN>@github.com/yourorg/private-repo-1.git"
@@ -20,6 +34,11 @@ services:
       UPDATE_INTERVAL: "3600"
       FORCE_UPDATE_GLOBAL: "true"
       WEBUI_PORT: "3000"
+      
+      # AppStore deployment mode
+      DEPLOYMENT_MODE: "appstore"
+      CASAOS_API_HOST: "localhost"
+      CASAOS_API_PORT: "8080"
       
       # Add CasaOS-like environment variables (from NSL setup)
       PUID: ${PUID}
@@ -38,17 +57,7 @@ services:
         source: /DATA/AppData/yunderagithubcompiler/repos
         target: /app/repos
 
-      # Add DATA root access (same as CasaOS container)
-      - type: bind
-        source: /DATA
-        target: /DATA
-        read_only: true
-        
-      # Add device access (same as CasaOS container)
-      - type: bind
-        source: /dev
-        target: /dev
-        read_only: true
+      # /DATA and /dev are mounted via command for AppStore compatibility
 
     # Connect to the same network as the CasaOS service
     networks:
@@ -67,12 +76,7 @@ services:
         - container: /app/repos
           description:
             en_us: "Git repos are cloned here."
-        - container: /DATA
-          description:
-            en_us: "Access to the DATA root directory."
-        - container: /dev
-          description:
-            en_us: "Access to device files."
+        # /DATA and /dev mounted via startup command
 
 # Define the network as external, since it's created by the main NSL stack
 networks:
