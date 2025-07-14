@@ -1,13 +1,29 @@
 name: yunderagithubcompiler
 
 services:
+  docker-daemon:
+    image: docker:dind
+    container_name: yundera-docker-daemon
+    restart: unless-stopped
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    volumes:
+      - docker-data:/var/lib/docker
+      - type: bind
+        source: /DATA/AppData/yunderagithubcompiler/repos
+        target: /repos
+        
   yunderagithubcompiler:
     image: krizcold/yundera-github-compiler:latest
     container_name: yunderagithubcompiler
     restart: unless-stopped
+    depends_on:
+      - docker-daemon
     expose:
       - "3000"
     environment:
+      DOCKER_HOST: tcp://docker-daemon:2375
       # --> GitHub token for repository access
       # REPO_0: "https://<TOKEN>@github.com/yourorg/private-repo-1.git"
       # REPO_1: "https://<TOKEN>@github.com/yourorg/private-repo-2.git"
@@ -32,7 +48,7 @@ services:
       DATA_ROOT: "/DATA"
       REF_NET: "pcs"
 
-    volumes:
+    volumes:        
       # cloned repos
       - type: bind
         source: /DATA/AppData/yunderagithubcompiler/repos
@@ -69,6 +85,10 @@ services:
             en_us: "Access to device files (read-only via pre-install setup)"
 
 # Define the network as external, since it's created by the main NSL stack
+volumes:
+  docker-data:
+    driver: local
+
 networks:
   pcs:
     external: true
