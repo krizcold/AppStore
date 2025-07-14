@@ -12,17 +12,42 @@ services:
       - -c
       - |
         echo "🔧 Checking and adding Docker socket mount..."
+        
+        # Wait a bit for everything to settle
+        echo "⏳ Waiting 10 seconds for CasaOS to finish setup..."
+        sleep 10
+        
+        # Check if directories exist
+        echo "📁 Checking directory structure..."
+        if [ -d "/app" ]; then
+          echo "✅ /app exists"
+          ls -la /app
+        else
+          echo "❌ /app does not exist"
+        fi
+        
+        if [ -d "/app/casaos-config" ]; then
+          echo "✅ /app/casaos-config exists"
+          ls -la /app/casaos-config
+        else
+          echo "❌ /app/casaos-config does not exist"
+        fi
+        
         COMPOSE_FILE="/app/casaos-config/docker-compose.yml"
         
         # Wait for the compose file to be created
-        timeout=60
+        timeout=120
         while [ ! -f "$COMPOSE_FILE" ] && [ $timeout -gt 0 ]; do
-          echo "⏳ Waiting for compose file at $COMPOSE_FILE..."
-          sleep 2
-          timeout=$((timeout - 2))
+          echo "⏳ Waiting for compose file at $COMPOSE_FILE... (${timeout}s remaining)"
+          sleep 5
+          timeout=$((timeout - 5))
         done
         
         if [ -f "$COMPOSE_FILE" ]; then
+          echo "✅ Found docker-compose.yml file"
+          echo "📄 File contents preview:"
+          head -20 "$COMPOSE_FILE"
+          
           # Check if docker.sock is already mounted
           if ! grep -q "/var/run/docker.sock" "$COMPOSE_FILE"; then
             echo "📝 Adding Docker socket mount to compose file..."
@@ -34,16 +59,21 @@ services:
             sed -i '/volumes:/a\      - type: bind\n        source: /var/run/docker.sock\n        target: /var/run/docker.sock' "$COMPOSE_FILE"
             
             echo "✅ Docker socket mount added successfully"
+            echo "📄 Updated file preview:"
+            grep -A 10 "volumes:" "$COMPOSE_FILE"
+            
             echo "🔄 Restarting container to apply changes..."
             
             # Restart this container to get the new mount
-            docker-compose -f "$COMPOSE_FILE" restart yunderagithubcompiler
+            docker-compose -f "/app/casaos-config/docker-compose.yml" restart yunderagithubcompiler
             exit 0
           else
             echo "✅ Docker socket mount already present"
           fi
         else
-          echo "❌ Docker compose file not found, continuing without Docker socket..."
+          echo "❌ Docker compose file not found after waiting, continuing without Docker socket..."
+          echo "🔍 Let's see what's actually in /app/casaos-config:"
+          ls -la /app/casaos-config/ 2>/dev/null || echo "Directory is empty or doesn't exist"
         fi
         
         echo "🚀 Starting Yundera GitHub Compiler..."
