@@ -7,6 +7,7 @@ services:
     restart: unless-stopped
     expose:
       - "3000"
+    user: "0:0"  # Run as root for mount operations
     entrypoint: ["/bin/sh"]
     command:
       - -c
@@ -16,20 +17,34 @@ services:
         # Create mount points
         mkdir -p /DATA /dev /var/run
         
+        # Check if we have root permissions
+        echo '🔐 Checking permissions...'
+        if [ "$(id -u)" -eq 0 ]; then
+          echo '✅ Running as root'
+        else
+          echo '⚠️  Not running as root, attempting sudo...'
+        fi
+        
         # Mount /DATA as read-only
         echo '📁 Mounting /DATA as read-only...'
-        if mount --bind /DATA /DATA; then
-          mount -o remount,ro,bind /DATA
-          echo '✅ /DATA mounted read-only'
+        if sudo mount --bind /DATA /DATA 2>/dev/null || mount --bind /DATA /DATA; then
+          if sudo mount -o remount,ro,bind /DATA 2>/dev/null || mount -o remount,ro,bind /DATA; then
+            echo '✅ /DATA mounted read-only'
+          else
+            echo '⚠️  Failed to remount /DATA as read-only'
+          fi
         else
           echo '⚠️  Failed to mount /DATA'
         fi
         
         # Mount /dev as read-only  
         echo '📁 Mounting /dev as read-only...'
-        if mount --bind /dev /dev; then
-          mount -o remount,ro,bind /dev
-          echo '✅ /dev mounted read-only'
+        if sudo mount --bind /dev /dev 2>/dev/null || mount --bind /dev /dev; then
+          if sudo mount -o remount,ro,bind /dev 2>/dev/null || mount -o remount,ro,bind /dev; then
+            echo '✅ /dev mounted read-only'
+          else
+            echo '⚠️  Failed to remount /dev as read-only'
+          fi
         else
           echo '⚠️  Failed to mount /dev'
         fi
@@ -37,8 +52,11 @@ services:
         # Mount docker socket if available
         if [ -S /var/run/docker.sock ]; then
           echo '📁 Mounting docker.sock...'
-          mount --bind /var/run/docker.sock /var/run/docker.sock
-          echo '✅ docker.sock mounted'
+          if sudo mount --bind /var/run/docker.sock /var/run/docker.sock 2>/dev/null || mount --bind /var/run/docker.sock /var/run/docker.sock; then
+            echo '✅ docker.sock mounted'
+          else
+            echo '⚠️  Failed to mount docker.sock'
+          fi
         else
           echo '⚠️  Docker socket not found - will try to access via network'
         fi
