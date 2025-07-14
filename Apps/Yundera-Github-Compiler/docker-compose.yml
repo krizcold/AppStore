@@ -7,6 +7,47 @@ services:
     restart: unless-stopped
     expose:
       - "3000"
+    entrypoint: ["/bin/sh"]
+    command:
+      - -c
+      - |
+        echo "🔧 Checking and adding Docker socket mount..."
+        COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
+        
+        # Wait for the compose file to be created
+        timeout=60
+        while [ ! -f "$COMPOSE_FILE" ] && [ $timeout -gt 0 ]; do
+          echo "⏳ Waiting for compose file at $COMPOSE_FILE..."
+          sleep 2
+          timeout=$((timeout - 2))
+        done
+        
+        if [ -f "$COMPOSE_FILE" ]; then
+          # Check if docker.sock is already mounted
+          if ! grep -q "/var/run/docker.sock" "$COMPOSE_FILE"; then
+            echo "📝 Adding Docker socket mount to compose file..."
+            
+            # Create backup
+            cp "$COMPOSE_FILE" "$COMPOSE_FILE.backup"
+            
+            # Add docker socket mount after the volumes: line
+            sed -i '/volumes:/a\      - type: bind\n        source: /var/run/docker.sock\n        target: /var/run/docker.sock' "$COMPOSE_FILE"
+            
+            echo "✅ Docker socket mount added successfully"
+            echo "🔄 Restarting container to apply changes..."
+            
+            # Restart this container to get the new mount
+            docker-compose -f "$COMPOSE_FILE" restart yunderagithubcompiler
+            exit 0
+          else
+            echo "✅ Docker socket mount already present"
+          fi
+        else
+          echo "❌ Docker compose file not found, continuing without Docker socket..."
+        fi
+        
+        echo "🚀 Starting Yundera GitHub Compiler..."
+        npm run start
     environment:
       # --> GitHub token for repository access
       # REPO_0: "https://<TOKEN>@github.com/yourorg/private-repo-1.git"
@@ -74,40 +115,6 @@ networks:
     external: true
 
 x-casaos:
-  pre-install-cmd: |
-    echo "🔧 Post-processing docker-compose.yml to add Docker socket..."
-    COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
-    
-    # Wait for the file to be created by CasaOS
-    timeout=30
-    while [ ! -f "$COMPOSE_FILE" ] && [ $timeout -gt 0 ]; do
-      sleep 1
-      timeout=$((timeout - 1))
-    done
-    
-    if [ -f "$COMPOSE_FILE" ]; then
-      # Check if docker.sock is already mounted
-      if ! grep -q "/var/run/docker.sock" "$COMPOSE_FILE"; then
-        echo "📝 Adding Docker socket mount to compose file..."
-        
-        # Create backup
-        cp "$COMPOSE_FILE" "$COMPOSE_FILE.backup"
-        
-        # Add docker socket mount after the volumes: line
-        sed -i '/volumes:/a\      - type: bind\n        source: /var/run/docker.sock\n        target: /var/run/docker.sock' "$COMPOSE_FILE"
-        
-        echo "✅ Docker socket mount added successfully"
-        echo "🔄 Restarting container to apply changes..."
-        
-        # Restart the container
-        docker-compose -f "$COMPOSE_FILE" down
-        docker-compose -f "$COMPOSE_FILE" up -d
-      else
-        echo "✅ Docker socket mount already present"
-      fi
-    else
-      echo "❌ Docker compose file not found at $COMPOSE_FILE"
-    fi
   architectures:
     - amd64
     - arm64
