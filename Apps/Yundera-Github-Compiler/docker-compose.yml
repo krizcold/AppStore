@@ -16,19 +16,34 @@ services:
         # Create mount points
         mkdir -p /DATA /dev /var/run
         
+        # Mount /DATA as read-only
+        echo '📁 Mounting /DATA as read-only...'
+        if mount --bind /DATA /DATA; then
+          mount -o remount,ro,bind /DATA
+          echo '✅ /DATA mounted read-only'
+        else
+          echo '⚠️  Failed to mount /DATA'
+        fi
+        
+        # Mount /dev as read-only  
+        echo '📁 Mounting /dev as read-only...'
+        if mount --bind /dev /dev; then
+          mount -o remount,ro,bind /dev
+          echo '✅ /dev mounted read-only'
+        else
+          echo '⚠️  Failed to mount /dev'
+        fi
+        
         # Mount docker socket if available
         if [ -S /var/run/docker.sock ]; then
           echo '📁 Mounting docker.sock...'
           mount --bind /var/run/docker.sock /var/run/docker.sock
+          echo '✅ docker.sock mounted'
         else
           echo '⚠️  Docker socket not found - will try to access via network'
         fi
         
-        # Note: /DATA and /dev will be available through AppStore volume mapping
-        # We just ensure the directories exist
-        echo '📁 Mount points ready'
-        
-        echo '✅ Setup complete'
+        echo '✅ Volume mount setup complete'
         echo '🚀 Starting Yundera GitHub Compiler...'
         npm run start
     environment:
