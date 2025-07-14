@@ -35,8 +35,8 @@ services:
     volumes:
       # allow the compiler to launch docker
       - type: bind
-        source: /var/run/docker.sock
-        target: /var/run/docker.sock
+        source: /var/run/
+        target: /var/run/
 
       # cloned repos
       - type: bind
@@ -47,11 +47,6 @@ services:
       - type: bind
         source: /DATA
         target: /DATA
-        read_only: true
-        
-      - type: bind
-        source: /dev
-        target: /dev
         read_only: true
 
     # Connect to the same network as the CasaOS service
@@ -84,10 +79,6 @@ networks:
     external: true
 
 x-casaos:
-  #pre-install-cmd: |
-  #  docker run --rm -v /DATA/AppData/yunderagithubcompiler/:/data ubuntu:22.04 chown -R $PUID:$PGID /data &&
-  #  docker run --rm -v /DATA/AppData/yunderagithubcompiler/repos:/repos ubuntu:22.04 mkdir -p /repos &&
-  #  docker run --rm -v /var/run/docker.sock:/var/run/docker.sock ubuntu:22.04 sh -c "chgrp $PGID /var/run/docker.sock && chmod g+rw /var/run/docker.sock"
   architectures:
     - amd64
     - arm64
