@@ -1,29 +1,13 @@
 name: yunderagithubcompiler
 
 services:
-  docker-daemon:
-    image: docker:dind
-    container_name: yundera-docker-daemon
-    restart: unless-stopped
-    privileged: true
-    environment:
-      DOCKER_TLS_CERTDIR: ""
-    volumes:
-      - docker-data:/var/lib/docker
-      - type: bind
-        source: /DATA/AppData/yunderagithubcompiler/repos
-        target: /repos
-        
   yunderagithubcompiler:
     image: krizcold/yundera-github-compiler:latest
     container_name: yunderagithubcompiler
     restart: unless-stopped
-    depends_on:
-      - docker-daemon
     expose:
       - "3000"
     environment:
-      DOCKER_HOST: tcp://docker-daemon:2375
       # --> GitHub token for repository access
       # REPO_0: "https://<TOKEN>@github.com/yourorg/private-repo-1.git"
       # REPO_1: "https://<TOKEN>@github.com/yourorg/private-repo-2.git"
@@ -85,15 +69,45 @@ services:
             en_us: "Access to device files (read-only via pre-install setup)"
 
 # Define the network as external, since it's created by the main NSL stack
-volumes:
-  docker-data:
-    driver: local
-
 networks:
   pcs:
     external: true
 
 x-casaos:
+  pre-install-cmd: |
+    echo "🔧 Post-processing docker-compose.yml to add Docker socket..."
+    COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
+    
+    # Wait for the file to be created by CasaOS
+    timeout=30
+    while [ ! -f "$COMPOSE_FILE" ] && [ $timeout -gt 0 ]; do
+      sleep 1
+      timeout=$((timeout - 1))
+    done
+    
+    if [ -f "$COMPOSE_FILE" ]; then
+      # Check if docker.sock is already mounted
+      if ! grep -q "/var/run/docker.sock" "$COMPOSE_FILE"; then
+        echo "📝 Adding Docker socket mount to compose file..."
+        
+        # Create backup
+        cp "$COMPOSE_FILE" "$COMPOSE_FILE.backup"
+        
+        # Add docker socket mount after the volumes: line
+        sed -i '/volumes:/a\      - type: bind\n        source: /var/run/docker.sock\n        target: /var/run/docker.sock' "$COMPOSE_FILE"
+        
+        echo "✅ Docker socket mount added successfully"
+        echo "🔄 Restarting container to apply changes..."
+        
+        # Restart the container
+        docker-compose -f "$COMPOSE_FILE" down
+        docker-compose -f "$COMPOSE_FILE" up -d
+      else
+        echo "✅ Docker socket mount already present"
+      fi
+    else
+      echo "❌ Docker compose file not found at $COMPOSE_FILE"
+    fi
   architectures:
     - amd64
     - arm64
