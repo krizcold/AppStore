@@ -66,13 +66,14 @@ services:
           echo "📄 File contents preview:"
           head -20 "$$COMPOSE_FILE"
           
-          # Define parts of the string to search for.
-          # This prevents grep from finding the string inside this script block.
+          # Define parts of the string to search for and insert.
+          # This prevents grep from finding the literal string inside this script block.
           PART1="docker"
           PART2=".sock"
-          SEARCH_STRING="source: /var/run/$$PART1$$PART2"
+          SOCK_PATH="/var/run/$$PART1$$PART2"
+          SEARCH_STRING="source: $$SOCK_PATH"
           
-          # Check if docker.sock is already mounted.
+          # Check if the docker socket mount already exists in the volumes section.
           if ! grep -q "$$SEARCH_STRING" "$$COMPOSE_FILE"; then
             echo "📝 Adding Docker socket mount to compose file..."
             
@@ -80,8 +81,9 @@ services:
             cp "$$COMPOSE_FILE" "$$COMPOSE_FILE.backup"
 
             # Create a temporary file with the exact YAML block to insert.
-            # This is the most reliable way to preserve indentation.
-            printf '%s\n' '      - type: bind' '        source: /var/run/docker.sock' '        target: /var/run/docker.sock' > /tmp/volume_to_add.txt
+            # We use variables here as well to avoid self-detection by grep.
+            # Note the use of double quotes to allow shell variable expansion.
+            printf '%s\n' '      - type: bind' "        source: $$SOCK_PATH" "        target: $$SOCK_PATH" > /tmp/volume_to_add.txt
 
             # Use sed's 'r' (read file) command to insert the content after the 'volumes:' line.
             sed -i -e "/volumes:/r /tmp/volume_to_add.txt" "$$COMPOSE_FILE"
