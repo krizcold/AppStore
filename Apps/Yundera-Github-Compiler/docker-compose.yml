@@ -35,46 +35,50 @@ services:
         
         COMPOSE_FILE="/app/casaos-config/docker-compose.yml"
         
-        echo "🔍 Checking for compose file at '$COMPOSE_FILE'..."
+        echo "🔍 Checking for compose file at '$$COMPOSE_FILE'..."
         
-        # Debug file existence and permissions
+        # Debug info:
         echo "🔧 Debug info:"
-        echo "Variable content: '$COMPOSE_FILE'"
-        echo "Variable length: ${#COMPOSE_FILE}"
+        echo "Variable content: '$$COMPOSE_FILE'"
+        echo "Variable length: $${#COMPOSE_FILE}"
         echo "ls check:"
         ls -la "/app/casaos-config/docker-compose.yml" 2>&1
         echo "Direct file access test:"
         cat "/app/casaos-config/docker-compose.yml" | head -3 2>&1
-        echo "File exists check: $([ -e "$COMPOSE_FILE" ] && echo 'YES' || echo 'NO')"
-        echo "File readable check: $([ -r "$COMPOSE_FILE" ] && echo 'YES' || echo 'NO')"
+        
+        printf "File exists check: "
+        if [ -e "$$COMPOSE_FILE" ]; then echo "YES"; else echo "NO"; fi
+        
+        printf "File readable check: "
+        if [ -r "$$COMPOSE_FILE" ]; then echo "YES"; else echo "NO"; fi
         
         # Fix permissions first if file exists
-        if [ -e "$COMPOSE_FILE" ]; then
+        if [ -e "$$COMPOSE_FILE" ]; then
           echo "✅ Found docker-compose.yml file"
           echo "🔐 Current file permissions:"
-          ls -la "$COMPOSE_FILE"
+          ls -la "$$COMPOSE_FILE"
           
           echo "📝 Fixing file permissions..."
-          chmod 644 "$COMPOSE_FILE"
+          chmod 644 "$$COMPOSE_FILE"
           echo "🔐 Updated file permissions:"
-          ls -la "$COMPOSE_FILE"
+          ls -la "$$COMPOSE_FILE"
           
           echo "📄 File contents preview:"
-          head -20 "$COMPOSE_FILE"
+          head -20 "$$COMPOSE_FILE"
           
           # Check if docker.sock is already mounted
-          if ! grep -q "/var/run/docker.sock" "$COMPOSE_FILE"; then
+          if ! grep -q "/var/run/docker.sock" "$$COMPOSE_FILE"; then
             echo "📝 Adding Docker socket mount to compose file..."
             
             # Create backup
-            cp "$COMPOSE_FILE" "$COMPOSE_FILE.backup"
+            cp "$$COMPOSE_FILE" "$$COMPOSE_FILE.backup"
             
             # Add docker socket mount after the volumes: line
-            sed -i '/volumes:/a\      - type: bind\n        source: /var/run/docker.sock\n        target: /var/run/docker.sock' "$COMPOSE_FILE"
+            sed -i '/volumes:/a\      - type: bind\n        source: /var/run/docker.sock\n        target: /var/run/docker.sock' "$$COMPOSE_FILE"
             
             echo "✅ Docker socket mount added successfully"
             echo "📄 Updated file preview:"
-            grep -A 10 "volumes:" "$COMPOSE_FILE"
+            grep -A 10 "volumes:" "$$COMPOSE_FILE"
             
             echo "🔄 Restarting container to apply changes..."
             
