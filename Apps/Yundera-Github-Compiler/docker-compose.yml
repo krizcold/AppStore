@@ -35,10 +35,16 @@ services:
         
         COMPOSE_FILE="/app/casaos-config/docker-compose.yml"
         
-        echo "🔍 Checking for compose file at $COMPOSE_FILE..."
+        echo "🔍 Checking for compose file at '$COMPOSE_FILE'..."
         
         # Debug file existence and permissions
         echo "🔧 Debug info:"
+        echo "Variable content: '$COMPOSE_FILE'"
+        echo "Variable length: ${#COMPOSE_FILE}"
+        echo "ls check:"
+        ls -la "/app/casaos-config/docker-compose.yml" 2>&1
+        echo "Direct file access test:"
+        cat "/app/casaos-config/docker-compose.yml" | head -3 2>&1
         echo "File exists check: $([ -e "$COMPOSE_FILE" ] && echo 'YES' || echo 'NO')"
         echo "File readable check: $([ -r "$COMPOSE_FILE" ] && echo 'YES' || echo 'NO')"
         
