@@ -5,7 +5,6 @@ services:
     image: krizcold/yundera-github-compiler:latest
     container_name: yunderagithubcompiler
     restart: unless-stopped
-    user: $PUID:$PGID
     expose:
       - "3000"
     environment:
