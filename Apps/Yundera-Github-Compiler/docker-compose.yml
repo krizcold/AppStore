@@ -12,10 +12,11 @@ services:
       - -c
       - |
         set -e
-        echo "🔧 Checking for Docker socket mount..."
+        echo "🔧 (Test Mode) Checking for Docker socket mount..."
         sleep 5
         
         COMPOSE_FILE="/app/casaos-config/docker-compose.yml"
+        COMPOSE_NEW_FILE="/app/casaos-config/docker-compose-new.yml"
         
         if [ ! -f "$COMPOSE_FILE" ]; then
           echo "❌ FATAL: Cannot find $COMPOSE_FILE. Check volume mounts."
@@ -23,32 +24,37 @@ services:
           exit 1
         fi
         
-        # We use grep with a character class '[d]ocker.sock' so that grep does not find this literal string
-        # in the awk command below, which would cause a false positive.
+        # Use grep with a character class to prevent it from finding the string in our script.
         if ! grep -q "source: /var/run/[d]ocker.sock" "$COMPOSE_FILE"; then
-          echo "📝 Docker socket mount not found. Adding it now..."
+          echo "📝 (Test Mode) Docker socket mount not found. Generating new compose file for review."
         
-          # Create a backup.
-          cp "$COMPOSE_FILE" "$COMPOSE_FILE.backup"
+          # This stateful awk script intelligently finds the correct 'volumes:' section under 'yunderagithubcompiler'.
+          # 1. When it sees 'yunderagithubcompiler:', it sets a flag 'in_service=1'.
+          # 2. If 'in_service' is true, it finds 'volumes:' and inserts the new block, then sets 'added=1'.
+          # 3. If it sees a non-indented line, it assumes we've left the service block and resets 'in_service=0'.
+          # 4. The output is safely written to a new file.
+          awk '
+            /^[[:space:]]*yunderagithubcompiler:/ { in_service=1 }
+            in_service && /^[[:space:]]*volumes:[[:space:]]*$/ && !added {
+              print;
+              printf "      - type: bind\n        source: /var/run/docker.sock\n        target: /var/run/docker.sock\n";
+              added=1;
+              next;
+            }
+            /^[a-zA-Z]/ { in_service=0 }
+            { print }
+          ' "$COMPOSE_FILE" > "$COMPOSE_NEW_FILE"
         
-          # Use a single, robust awk command to find the 'volumes:' line and insert our text block directly after it.
-          # This is safer than sed for multi-line insertions. The output is written to a temp file.
-          awk '1; /^[[:space:]]*volumes:[[:space:]]*$$/ { printf "      - type: bind\n        source: /var/run/docker.sock\n        target: /var/run/docker.sock\n" }' "$COMPOSE_FILE" > "$COMPOSE_FILE.tmp"
-        
-          # Atomically replace the old file with the new, correctly modified one.
-          mv "$COMPOSE_FILE.tmp" "$COMPOSE_FILE"
-        
-          echo "✅ Docker socket mount added successfully."
-          echo "📄 Updated file preview:"
-          grep -A 5 "volumes:" "$COMPOSE_FILE"
-        
-          # Exit cleanly. The 'restart: unless-stopped' policy will automatically restart the container,
-          # which is the safest way to apply the new docker-compose.yml configuration.
-          echo "🔄 Exiting to allow Docker to restart the container with the new volume."
+          echo "✅ (Test Mode) Successfully created '$COMPOSE_NEW_FILE'."
+          echo "📄 Please inspect the new file to verify the changes."
+          echo "⚠️ This container will now exit. Please apply the changes from the new file and restart."
+          
+          # Exit cleanly to stop the container. The main application will not start.
+          # This allows you to inspect the result of the test.
           exit 0
         fi
         
-        echo "✅ Docker socket mount is present."
+        echo "✅ Docker socket mount is already present."
         echo "🚀 Starting Yundera GitHub Compiler..."
         exec npm run start
     environment:
