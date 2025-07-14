@@ -18,24 +18,22 @@ services:
         COMPOSE_FILE="/app/casaos-config/docker-compose.yml"
         COMPOSE_NEW_FILE="/app/casaos-config/docker-compose-new.yml"
         
-        if [ ! -f "$COMPOSE_FILE" ]; then
-          echo "❌ FATAL: Cannot find $COMPOSE_FILE. Check volume mounts."
+        # Use $$ to escape variables for the container's shell.
+        if [ ! -f "$$COMPOSE_FILE" ]; then
+          echo "❌ FATAL: Cannot find $$COMPOSE_FILE. Check volume mounts."
           sleep 3600
           exit 1
         fi
         
         # Use grep with a character class to prevent it from finding the string in our script.
-        if ! grep -q "source: /var/run/[d]ocker.sock" "$COMPOSE_FILE"; then
+        if ! grep -q "source: /var/run/[d]ocker.sock" "$$COMPOSE_FILE"; then
           echo "📝 (Test Mode) Docker socket mount not found. Generating new compose file for review."
         
           # This stateful awk script intelligently finds the correct 'volumes:' section under 'yunderagithubcompiler'.
-          # 1. When it sees 'yunderagithubcompiler:', it sets a flag 'in_service=1'.
-          # 2. If 'in_service' is true, it finds 'volumes:' and inserts the new block, then sets 'added=1'.
-          # 3. If it sees a non-indented line, it assumes we've left the service block and resets 'in_service=0'.
-          # 4. The output is safely written to a new file.
+          # The filenames are properly escaped with $$.
           awk '
             /^[[:space:]]*yunderagithubcompiler:/ { in_service=1 }
-            in_service && /^[[:space:]]*volumes:[[:space:]]*$/ && !added {
+            in_service && /^[[:space:]]*volumes:[[:space:]]*$$/ && !added {
               print;
               printf "      - type: bind\n        source: /var/run/docker.sock\n        target: /var/run/docker.sock\n";
               added=1;
@@ -43,14 +41,12 @@ services:
             }
             /^[a-zA-Z]/ { in_service=0 }
             { print }
-          ' "$COMPOSE_FILE" > "$COMPOSE_NEW_FILE"
+          ' "$$COMPOSE_FILE" > "$$COMPOSE_NEW_FILE"
         
-          echo "✅ (Test Mode) Successfully created '$COMPOSE_NEW_FILE'."
+          echo "✅ (Test Mode) Successfully created '$$COMPOSE_NEW_FILE'."
           echo "📄 Please inspect the new file to verify the changes."
           echo "⚠️ This container will now exit. Please apply the changes from the new file and restart."
           
-          # Exit cleanly to stop the container. The main application will not start.
-          # This allows you to inspect the result of the test.
           exit 0
         fi
         
