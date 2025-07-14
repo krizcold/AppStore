@@ -7,20 +7,30 @@ services:
     restart: unless-stopped
     expose:
       - "3000"
-    command: >
-      sh -c "
-        echo '🔧 Setting up volume mounts for AppStore compatibility...' &&
-        mkdir -p /DATA /dev &&
-        echo '📁 Mounting /DATA as read-only...' &&
-        mount --bind /DATA /DATA &&
-        mount -o remount,ro /DATA &&
-        echo '📁 Mounting /dev as read-only...' &&
-        mount --bind /dev /dev &&
-        mount -o remount,ro /dev &&
-        echo '✅ Volume mounts complete' &&
-        echo '🚀 Starting Yundera GitHub Compiler...' &&
+    entrypoint: ["/bin/sh"]
+    command:
+      - -c
+      - |
+        echo '🔧 Setting up volume mounts for AppStore compatibility...'
+        
+        # Create mount points
+        mkdir -p /DATA /dev /var/run
+        
+        # Mount docker socket if available
+        if [ -S /var/run/docker.sock ]; then
+          echo '📁 Mounting docker.sock...'
+          mount --bind /var/run/docker.sock /var/run/docker.sock
+        else
+          echo '⚠️  Docker socket not found - will try to access via network'
+        fi
+        
+        # Note: /DATA and /dev will be available through AppStore volume mapping
+        # We just ensure the directories exist
+        echo '📁 Mount points ready'
+        
+        echo '✅ Setup complete'
+        echo '🚀 Starting Yundera GitHub Compiler...'
         npm run start
-      "
     environment:
       # --> GitHub token for repository access
       # REPO_0: "https://<TOKEN>@github.com/yourorg/private-repo-1.git"
@@ -48,16 +58,26 @@ services:
 
     volumes:
       # allow the compiler to launch docker
-      - type: bind
-        source: /var/run/docker.sock
-        target: /var/run/docker.sock
+      #- type: bind
+      #  source: /var/run/docker.sock
+      #  target: /var/run/docker.sock
 
       # cloned repos
       - type: bind
         source: /DATA/AppData/yunderagithubcompiler/repos
         target: /app/repos
 
-      # /DATA and /dev are mounted via command for AppStore compatibility
+      # Add DATA root access (same as CasaOS container)
+      #- type: bind
+      #  source: /DATA
+      #  target: /DATA
+      #  read_only: true
+        
+      # Add device access (same as CasaOS container)
+      #- type: bind
+      #  source: /dev
+      #  target: /dev
+      #  read_only: true
 
     # Connect to the same network as the CasaOS service
     networks:
