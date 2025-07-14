@@ -7,85 +7,6 @@ services:
     restart: unless-stopped
     expose:
       - "3000"
-    user: "0:0"  # Run as root for mount operations
-    entrypoint: ["/bin/sh"]
-    command:
-      - -c
-      - |
-        echo '🔧 Setting up volume mounts for AppStore compatibility...'
-        
-        # Create mount points
-        mkdir -p /DATA /dev /var/run
-        
-        # Check if we have root permissions
-        echo '🔐 Checking permissions...'
-        if [ "$(id -u)" -eq 0 ]; then
-          echo '✅ Running as root'
-        else
-          echo '⚠️  Not running as root, attempting sudo...'
-        fi
-        
-        # Try to access host filesystem and mount directories
-        echo '📁 Setting up host filesystem access...'
-        
-        # For AppStore, we need to detect where the host filesystem is mounted
-        # Check common mount points
-        HOST_ROOT=""
-        if [ -d "/host" ]; then
-          HOST_ROOT="/host"
-        elif [ -d "/hostfs" ]; then
-          HOST_ROOT="/hostfs"
-        elif [ -d "/mnt/host" ]; then
-          HOST_ROOT="/mnt/host"
-        else
-          echo '❌ Cannot find host filesystem mount point'
-          echo 'Available mount points:'
-          mount | grep -v tmpfs | grep -v proc | head -5
-          exit 1
-        fi
-        
-        echo "📁 Using host root: $HOST_ROOT"
-        
-        # Mount /DATA from host
-        echo '📁 Mounting /DATA...'
-        mkdir -p /DATA
-        if mount --bind "$HOST_ROOT/DATA" /DATA && mount -o remount,ro /DATA; then
-          echo '✅ /DATA mounted read-only'
-        else
-          echo '❌ Failed to mount /DATA'
-          exit 1
-        fi
-        
-        # Mount /dev from host
-        echo '📁 Mounting /dev...'
-        if mount --bind "$HOST_ROOT/dev" /dev && mount -o remount,ro /dev; then
-          echo '✅ /dev mounted read-only'
-        else
-          echo '❌ Failed to mount /dev'
-          exit 1
-        fi
-        
-        # Mount docker socket
-        echo '📁 Mounting docker socket...'
-        mkdir -p /var/run
-        if mount --bind "$HOST_ROOT/var/run/docker.sock" /var/run/docker.sock 2>/dev/null; then
-          echo '✅ docker.sock mounted'
-        else
-          echo '⚠️  Docker socket not available'
-        fi
-        
-        # Verify read-only mounts
-        echo '🔍 Verifying read-only status...'
-        if ! touch /DATA/test 2>/dev/null && ! touch /dev/test 2>/dev/null; then
-          echo '✅ Mounts verified read-only'
-        else
-          echo '❌ Mount verification failed'
-          exit 1
-        fi
-        
-        echo '✅ Volume mount setup complete'
-        echo '🚀 Starting Yundera GitHub Compiler...'
-        npm run start
     environment:
       # --> GitHub token for repository access
       # REPO_0: "https://<TOKEN>@github.com/yourorg/private-repo-1.git"
@@ -112,27 +33,26 @@ services:
       REF_NET: "pcs"
 
     volumes:
-      # allow the compiler to launch docker (commented - AppStore cleans bind mounts)
-      #- type: bind
-      #  source: /var/run/docker.sock
-      #  target: /var/run/docker.sock
+      # allow the compiler to launch docker
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
 
       # cloned repos
       - type: bind
         source: /DATA/AppData/yunderagithubcompiler/repos
         target: /app/repos
 
-      # Add DATA root access (same as CasaOS container)
-      #- type: bind
-      #  source: /DATA
-      #  target: /DATA
-      #  read_only: true
+      # Mount the read-only prepared directories from pre-install-cmd
+      - type: bind
+        source: /tmp/yundera-mounts/DATA
+        target: /DATA
+        read_only: true
         
-      # Add device access (same as CasaOS container)
-      #- type: bind
-      #  source: /dev
-      #  target: /dev
-      #  read_only: true
+      - type: bind
+        source: /tmp/yundera-mounts/dev
+        target: /dev
+        read_only: true
 
     # Connect to the same network as the CasaOS service
     networks:
@@ -151,7 +71,12 @@ services:
         - container: /app/repos
           description:
             en_us: "Git repos are cloned here."
-        # /DATA and /dev mounted via startup command
+        - container: /DATA
+          description:
+            en_us: "Access to DATA directory (read-only via pre-install setup)"
+        - container: /dev
+          description:
+            en_us: "Access to device files (read-only via pre-install setup)"
 
 # Define the network as external, since it's created by the main NSL stack
 networks:
@@ -159,6 +84,16 @@ networks:
     external: true
 
 x-casaos:
+  pre-install-cmd: |
+    docker run --rm --privileged -v /DATA:/DATA -v /dev:/dev -v /tmp:/tmp ubuntu:22.04 bash -c "
+      echo '🔧 Setting up read-only mounts for /DATA and /dev...' &&
+      mkdir -p /tmp/yundera-mounts/DATA /tmp/yundera-mounts/dev &&
+      mount --bind /DATA /tmp/yundera-mounts/DATA &&
+      mount -o remount,ro,bind /tmp/yundera-mounts/DATA &&
+      mount --bind /dev /tmp/yundera-mounts/dev &&
+      mount -o remount,ro,bind /tmp/yundera-mounts/dev &&
+      echo '✅ Read-only mounts prepared'
+    "
   architectures:
     - amd64
     - arm64
