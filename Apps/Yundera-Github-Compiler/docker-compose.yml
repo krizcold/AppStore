@@ -5,6 +5,7 @@ services:
     image: krizcold/yundera-github-compiler:latest
     container_name: yunderagithubcompiler
     restart: unless-stopped
+    user: $PUID:$PGID
     expose:
       - "3000"
     entrypoint: ["/bin/sh"]
@@ -60,9 +61,9 @@ services:
       REF_NET: "pcs"
 
     volumes:
-      # allow the compiler to launch docker (prepared by pre-install-cmd)
+      # allow the compiler to launch docker
       - type: bind
-        source: /tmp/yundera-mounts/docker.sock
+        source: /var/run/docker.sock
         target: /var/run/docker.sock
 
       # cloned repos
@@ -70,14 +71,14 @@ services:
         source: /DATA/AppData/yunderagithubcompiler/repos
         target: /app/repos
 
-      # Mount the read-only prepared directories from pre-install-cmd
+      # Mount DATA and dev directories as read-only
       - type: bind
-        source: /tmp/yundera-mounts/DATA
+        source: /DATA
         target: /DATA
         read_only: true
         
       - type: bind
-        source: /tmp/yundera-mounts/dev
+        source: /dev
         target: /dev
         read_only: true
 
@@ -112,14 +113,9 @@ networks:
 
 x-casaos:
   pre-install-cmd: |
-    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /DATA:/DATA -v /dev:/dev -v /tmp:/tmp -v /var/run:/var/run --privileged ubuntu:22.04 sh -c "
-      mkdir -p /tmp/yundera-mounts/DATA /tmp/yundera-mounts/dev &&
-      mount --bind /DATA /tmp/yundera-mounts/DATA &&
-      mount -o remount,ro,bind /tmp/yundera-mounts/DATA &&
-      mount --bind /dev /tmp/yundera-mounts/dev &&
-      mount -o remount,ro,bind /tmp/yundera-mounts/dev &&
-      mount --bind /var/run/docker.sock /tmp/yundera-mounts/docker.sock
-    "
+    docker run --rm -v /DATA/AppData/yunderagithubcompiler/:/data ubuntu:22.04 chown -R $PUID:$PGID /data &&
+    docker run --rm -v /DATA/AppData/yunderagithubcompiler/repos:/repos ubuntu:22.04 mkdir -p /repos &&
+    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock ubuntu:22.04 sh -c "chgrp $PGID /var/run/docker.sock && chmod g+rw /var/run/docker.sock"
   architectures:
     - amd64
     - arm64
