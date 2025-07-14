@@ -43,8 +43,18 @@ services:
           timeout=$((timeout - 5))
         done
         
-        if [ -f "$COMPOSE_FILE" ]; then
+        # Check if file exists but may have permission issues
+        if [ -e "$COMPOSE_FILE" ]; then
           echo "✅ Found docker-compose.yml file"
+          echo "🔐 Checking file permissions..."
+          ls -la "$COMPOSE_FILE"
+          
+          # Fix permissions if needed
+          if [ ! -r "$COMPOSE_FILE" ]; then
+            echo "📝 Fixing file permissions..."
+            chmod 644 "$COMPOSE_FILE"
+          fi
+          
           echo "📄 File contents preview:"
           head -20 "$COMPOSE_FILE"
           
