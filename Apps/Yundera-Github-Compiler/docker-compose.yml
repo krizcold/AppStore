@@ -17,94 +17,64 @@ services:
         echo "⏳ Waiting 10 seconds for CasaOS to finish setup..."
         sleep 10
         
-        # Check if directories exist
-        echo "📁 Checking directory structure..."
-        if [ -d "/app" ]; then
-          echo "✅ /app exists"
-          ls -la /app
-        else
-          echo "❌ /app does not exist"
-        fi
-        
-        if [ -d "/app/casaos-config" ]; then
-          echo "✅ /app/casaos-config exists"
-          ls -la /app/casaos-config
-        else
-          echo "❌ /app/casaos-config does not exist"
-        fi
-        
         COMPOSE_FILE="/app/casaos-config/docker-compose.yml"
         
-        echo "🔍 Checking for compose file at '$$COMPOSE_FILE'..."
+        # Basic file checks
+        if [ ! -f "$$COMPOSE_FILE" ]; then
+          echo "❌ Cannot find $$COMPOSE_FILE. Something is wrong with the volume mounts."
+          sleep 300 # Sleep to allow for inspection
+          exit 1
+        fi
         
-        # Debug info:
-        echo "🔧 Debug info:"
-        echo "Variable content: '$$COMPOSE_FILE'"
-        echo "Variable length: $${#COMPOSE_FILE}"
-        echo "ls check:"
-        ls -la "/app/casaos-config/docker-compose.yml" 2>&1
-        echo "Direct file access test:"
-        cat "/app/casaos-config/docker-compose.yml" | head -3 2>&1
+        echo "✅ Found docker-compose.yml file."
+        echo "🔐 Fixing file permissions..."
+        chmod 644 "$$COMPOSE_FILE"
         
-        printf "File exists check: "
-        if [ -e "$$COMPOSE_FILE" ]; then echo "YES"; else echo "NO"; fi
+        echo "📄 File contents preview:"
+        head -n 30 "$$COMPOSE_FILE"
         
-        printf "File readable check: "
-        if [ -r "$$COMPOSE_FILE" ]; then echo "YES"; else echo "NO"; fi
+        # Define parts of the string to search for to prevent grep self-detection.
+        PART1="docker"
+        PART2=".sock"
+        SOCK_PATH="/var/run/$$PART1$$PART2"
+        SEARCH_STRING="source: $$SOCK_PATH"
         
-        # Fix permissions first if file exists
-        if [ -e "$$COMPOSE_FILE" ]; then
-          echo "✅ Found docker-compose.yml file"
-          echo "🔐 Current file permissions:"
-          ls -la "$$COMPOSE_FILE"
+        # Check if the docker socket mount already exists.
+        if ! grep -q "$$SEARCH_STRING" "$$COMPOSE_FILE"; then
+          echo "📝 Docker socket mount not found. Adding it now..."
           
-          echo "📝 Fixing file permissions..."
-          chmod 644 "$$COMPOSE_FILE"
-          echo "🔐 Updated file permissions:"
-          ls -la "$$COMPOSE_FILE"
-          
-          echo "📄 File contents preview:"
-          head -20 "$$COMPOSE_FILE"
-          
-          # Define parts of the string to search for and insert.
-          # This prevents grep from finding the literal string inside this script block.
-          PART1="docker"
-          PART2=".sock"
-          SOCK_PATH="/var/run/$$PART1$$PART2"
-          SEARCH_STRING="source: $$SOCK_PATH"
-          
-          # Check if the docker socket mount already exists in the volumes section.
-          if ! grep -q "$$SEARCH_STRING" "$$COMPOSE_FILE"; then
-            echo "📝 Adding Docker socket mount to compose file..."
-            
-            # Create backup
-            cp "$$COMPOSE_FILE" "$$COMPOSE_FILE.backup"
+          # Create backup
+          cp "$$COMPOSE_FILE" "$$COMPOSE_FILE.backup"
 
-            # Create a temporary file with the exact YAML block to insert.
-            # We use variables here as well to avoid self-detection by grep.
-            # Note the use of double quotes to allow shell variable expansion.
-            printf '%s\n' '      - type: bind' "        source: $$SOCK_PATH" "        target: $$SOCK_PATH" > /tmp/volume_to_add.txt
+          # Create a temporary file with the exact YAML block to insert.
+          printf '%s\n' '      - type: bind' "        source: $$SOCK_PATH" "        target: $$SOCK_PATH" > /tmp/volume_to_add.txt
 
-            # Use sed's 'r' (read file) command to insert the content after the 'volumes:' line.
-            sed -i -e "/volumes:/r /tmp/volume_to_add.txt" "$$COMPOSE_FILE"
+          # Use a robust awk script to insert the volume mount.
+          # This prints every line, and when it finds 'volumes:', it also prints our text block.
+          # The output is sent to a new temp file to avoid corruption.
+          awk '/volumes:/ {print; system("cat /tmp/volume_to_add.txt"); next} {print}' "$$COMPOSE_FILE" > "$$COMPOSE_FILE.tmp"
 
-            # Clean up the temporary file
-            rm /tmp/volume_to_add.txt
-            
-            echo "✅ Docker socket mount added successfully"
-            echo "📄 Updated file preview:"
-            grep -A 10 "volumes:" "$$COMPOSE_FILE"
-            
-            echo "🔄 Restarting container to apply changes..."
-            
-            # Restart this container to get the new mount
-            docker-compose -f "/app/casaos-config/docker-compose.yml" restart yunderagithubcompiler
-            exit 0
+          # Verify the temp file was created and is not empty before replacing the original.
+          if [ -s "$$COMPOSE_FILE.tmp" ]; then
+            mv "$$COMPOSE_FILE.tmp" "$$COMPOSE_FILE"
+            echo "✅ Docker socket mount added successfully."
           else
-            echo "✅ Docker socket mount already present"
+            echo "❌ ERROR: Failed to create modified compose file. Restoring from backup."
+            cp "$$COMPOSE_FILE.backup" "$$COMPOSE_FILE"
+            exit 1
           fi
+
+          # Clean up the temporary file
+          rm /tmp/volume_to_add.txt
+          
+          echo "📄 Updated file preview:"
+          grep -A 10 "volumes:" "$$COMPOSE_FILE"
+          
+          echo "🔄 Restarting container to apply changes..."
+          docker-compose -f "$$COMPOSE_FILE" restart yunderagithubcompiler
+          exit 0
         else
-          echo "❌ File truly doesn't exist - this shouldn't happen based on the directory listing"
+          echo "✅ Docker socket mount already present."
         fi
         
         echo "🚀 Starting Yundera GitHub Compiler..."
