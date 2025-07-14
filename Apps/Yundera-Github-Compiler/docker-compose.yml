@@ -7,6 +7,33 @@ services:
     restart: unless-stopped
     expose:
       - "3000"
+    entrypoint: ["/bin/sh"]
+    command:
+      - -c
+      - |
+        echo '🔍 Checking mount status...'
+        echo 'Docker socket:'
+        ls -la /var/run/docker.sock 2>/dev/null && echo '✅ Docker socket available' || echo '❌ Docker socket missing'
+        echo '/DATA directory:'
+        ls -la /DATA 2>/dev/null | head -3 && echo '✅ /DATA accessible' || echo '❌ /DATA not accessible'
+        echo '/dev directory:'
+        ls /dev 2>/dev/null | head -5 && echo '✅ /dev accessible' || echo '❌ /dev not accessible'
+        echo 'Testing /DATA write (should fail if read-only):'
+        if touch /DATA/test-write 2>/dev/null; then
+          echo '❌ WARNING: /DATA is writable (not read-only)!'
+          rm -f /DATA/test-write
+        else
+          echo '✅ /DATA is read-only (secure)'
+        fi
+        echo 'Testing /dev write (should fail if read-only):'
+        if touch /dev/test-write 2>/dev/null; then
+          echo '❌ WARNING: /dev is writable (not read-only)!'
+          rm -f /dev/test-write
+        else
+          echo '✅ /dev is read-only (secure)'
+        fi
+        echo '🚀 Starting Yundera GitHub Compiler...'
+        npm run start
     environment:
       # --> GitHub token for repository access
       # REPO_0: "https://<TOKEN>@github.com/yourorg/private-repo-1.git"
@@ -85,14 +112,12 @@ networks:
 
 x-casaos:
   pre-install-cmd: |
-    docker run --rm --privileged -v /DATA:/DATA -v /dev:/dev -v /tmp:/tmp ubuntu:22.04 bash -c "
-      echo '🔧 Setting up read-only mounts for /DATA and /dev...' &&
+    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /DATA:/DATA -v /dev:/dev -v /tmp:/tmp --privileged ubuntu:22.04 sh -c "
       mkdir -p /tmp/yundera-mounts/DATA /tmp/yundera-mounts/dev &&
       mount --bind /DATA /tmp/yundera-mounts/DATA &&
       mount -o remount,ro,bind /tmp/yundera-mounts/DATA &&
       mount --bind /dev /tmp/yundera-mounts/dev &&
-      mount -o remount,ro,bind /tmp/yundera-mounts/dev &&
-      echo '✅ Read-only mounts prepared'
+      mount -o remount,ro,bind /tmp/yundera-mounts/dev
     "
   architectures:
     - amd64
