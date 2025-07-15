@@ -133,33 +133,42 @@ x-casaos:
           echo "📡 Docker socket detected in compose file! Triggering restart..."
           echo "📁 Using compose file: $COMPOSE_FILE"
           
-          # Execute the restart command exactly like CasaOS does
-          echo "🚀 Restarting container exactly like CasaOS restart button..."
+          # Apply new compose configuration exactly like CasaOS does
+          echo "🚀 Applying new compose configuration like CasaOS applyComposeAppSettings..."
           
-          # CasaOS uses: docker compose -p <app-name> restart
-          # Extract the project name from the compose file
+          # CasaOS uses applyComposeAppSettings which does:
+          # 1. Backs up current compose file
+          # 2. Applies new configuration 
+          # 3. Pulls updated images
+          # 4. Gracefully updates containers
+          
           PROJECT_NAME="yunderagithubcompiler"
           
-          # Try docker compose (v2) first - the CasaOS way
-          if command -v docker >/dev/null 2>&1; then
-            echo "🔄 Trying: docker compose -p $PROJECT_NAME restart"
-            if docker compose -p "$PROJECT_NAME" restart; then
-              echo "✅ Success with 'docker compose restart' (CasaOS method)"
-            else
-              echo "⚠️  'docker compose restart' failed, trying with compose file..."
-              
-              # Try with explicit compose file
-              echo "🔄 Trying: docker compose -f $COMPOSE_FILE -p $PROJECT_NAME restart"
-              if docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" restart; then
-                echo "✅ Success with compose file specified"
-              else
-                echo "❌ Both restart methods failed"
-                exit 1
-              fi
-            fi
+          # Method 1: Use CasaOS API to apply settings (preferred)
+          echo "🔄 Method 1: Trying CasaOS API to apply compose settings..."
+          if curl -s -X PUT "http://localhost:8080/v2/app_management/compose/$PROJECT_NAME" \
+               -H "Content-Type: application/yaml" \
+               --data-binary "@$COMPOSE_FILE" > /tmp/casaos-apply.log 2>&1; then
+            echo "✅ Success with CasaOS API apply method"
+            cat /tmp/casaos-apply.log
           else
-            echo "❌ Docker command not found"
-            exit 1
+            echo "⚠️  CasaOS API failed, trying docker compose method..."
+            
+            # Method 2: Docker compose down/up to apply new config
+            echo "🔄 Method 2: Using docker compose down/up to apply new configuration..."
+            
+            # Stop the current containers
+            echo "🛑 Stopping containers..."
+            docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" down
+            
+            # Start with new configuration
+            echo "🚀 Starting with new configuration..."
+            if docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" up -d; then
+              echo "✅ Success with docker compose down/up method"
+            else
+              echo "❌ Docker compose down/up failed"
+              exit 1
+            fi
           fi
           
           echo "✅ Restart completed, handler exiting at $(date)"
