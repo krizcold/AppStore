@@ -61,6 +61,10 @@ services:
         target: /DATA
         read_only: true
 
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+
     # Connect to the same network as the CasaOS service
     networks:
       - pcs
