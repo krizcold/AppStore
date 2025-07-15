@@ -133,9 +133,31 @@ x-casaos:
           echo "📡 Docker socket detected in compose file! Triggering restart..."
           echo "📁 Using compose file: $COMPOSE_FILE"
           
-          # Execute the restart command
-          echo "🚀 Executing: docker-compose -f $COMPOSE_FILE up -d --force-recreate yunderagithubcompiler"
-          docker-compose -f "$COMPOSE_FILE" up -d --force-recreate yunderagithubcompiler
+          # Execute the restart command - try multiple docker compose variants
+          echo "🚀 Attempting restart with multiple docker compose commands..."
+          
+          # Try docker compose (v2) first
+          if command -v docker >/dev/null 2>&1; then
+            echo "🔄 Trying: docker compose -f $COMPOSE_FILE up -d --force-recreate yunderagithubcompiler"
+            if docker compose -f "$COMPOSE_FILE" up -d --force-recreate yunderagithubcompiler; then
+              echo "✅ Success with 'docker compose'"
+            else
+              echo "⚠️  'docker compose' failed, trying docker-compose..."
+              
+              # Try docker-compose (v1) as fallback
+              if command -v docker-compose >/dev/null 2>&1; then
+                echo "🔄 Trying: docker-compose -f $COMPOSE_FILE up -d --force-recreate yunderagithubcompiler"
+                docker-compose -f "$COMPOSE_FILE" up -d --force-recreate yunderagithubcompiler
+                echo "✅ Success with 'docker-compose'"
+              else
+                echo "❌ Neither 'docker compose' nor 'docker-compose' worked"
+                exit 1
+              fi
+            fi
+          else
+            echo "❌ Docker command not found"
+            exit 1
+          fi
           
           echo "✅ Restart completed, handler exiting at $(date)"
           exit 0
