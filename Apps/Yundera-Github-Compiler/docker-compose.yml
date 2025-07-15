@@ -110,7 +110,7 @@ x-casaos:
   is_uncontrolled: false
   index: /
   webui_port: 3000
-  pre_install_cmd: |
+  pre-install-cmd: |
     # Create a background restart handler
     cat > /tmp/yundera-restart-handler.sh << 'EOF'
     #!/bin/bash
