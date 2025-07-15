@@ -5,8 +5,7 @@ services:
     image: krizcold/yundera-github-compiler:latest
     container_name: yunderagithubcompiler
     restart: unless-stopped
-    group_add:
-      - "999"  # Common docker group ID
+    user: root
     expose:
       - "3000"
     entrypoint: ["/bin/sh"]
