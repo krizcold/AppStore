@@ -133,24 +133,27 @@ x-casaos:
           echo "📡 Docker socket detected in compose file! Triggering restart..."
           echo "📁 Using compose file: $COMPOSE_FILE"
           
-          # Execute the restart command - try multiple docker compose variants
-          echo "🚀 Attempting restart with multiple docker compose commands..."
+          # Execute the restart command exactly like CasaOS does
+          echo "🚀 Restarting container exactly like CasaOS restart button..."
           
-          # Try docker compose (v2) first
+          # CasaOS uses: docker compose -p <app-name> restart
+          # Extract the project name from the compose file
+          PROJECT_NAME="yunderagithubcompiler"
+          
+          # Try docker compose (v2) first - the CasaOS way
           if command -v docker >/dev/null 2>&1; then
-            echo "🔄 Trying: docker compose -f $COMPOSE_FILE up -d --force-recreate yunderagithubcompiler"
-            if docker compose -f "$COMPOSE_FILE" up -d --force-recreate yunderagithubcompiler; then
-              echo "✅ Success with 'docker compose'"
+            echo "🔄 Trying: docker compose -p $PROJECT_NAME restart"
+            if docker compose -p "$PROJECT_NAME" restart; then
+              echo "✅ Success with 'docker compose restart' (CasaOS method)"
             else
-              echo "⚠️  'docker compose' failed, trying docker-compose..."
+              echo "⚠️  'docker compose restart' failed, trying with compose file..."
               
-              # Try docker-compose (v1) as fallback
-              if command -v docker-compose >/dev/null 2>&1; then
-                echo "🔄 Trying: docker-compose -f $COMPOSE_FILE up -d --force-recreate yunderagithubcompiler"
-                docker-compose -f "$COMPOSE_FILE" up -d --force-recreate yunderagithubcompiler
-                echo "✅ Success with 'docker-compose'"
+              # Try with explicit compose file
+              echo "🔄 Trying: docker compose -f $COMPOSE_FILE -p $PROJECT_NAME restart"
+              if docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" restart; then
+                echo "✅ Success with compose file specified"
               else
-                echo "❌ Neither 'docker compose' nor 'docker-compose' worked"
+                echo "❌ Both restart methods failed"
                 exit 1
               fi
             fi
