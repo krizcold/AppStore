@@ -110,3 +110,38 @@ x-casaos:
   is_uncontrolled: false
   index: /
   webui_port: 3000
+  pre_install_cmd: |
+    # Create a background restart handler
+    cat > /tmp/yundera-restart-handler.sh << 'EOF'
+    #!/bin/bash
+    echo "🔄 Yundera restart handler started, waiting for signal..."
+    
+    # Wait for signal file for up to 30 seconds
+    for i in {1..30}; do
+      if [ -f "/tmp/yundera-restart-signal" ]; then
+        echo "📡 Restart signal received, executing restart..."
+        
+        # Get the compose file path from the signal file
+        COMPOSE_FILE=$(cat /tmp/yundera-restart-signal)
+        echo "📁 Using compose file: $COMPOSE_FILE"
+        
+        # Execute the restart command
+        docker-compose -f "$COMPOSE_FILE" up -d --force-recreate yunderagithubcompiler
+        
+        # Clean up
+        rm -f /tmp/yundera-restart-signal
+        echo "✅ Restart completed, handler exiting"
+        exit 0
+      fi
+      sleep 1
+    done
+    
+    echo "⏰ Timeout reached, handler exiting"
+    exit 1
+    EOF
+    
+    # Make it executable and run in background
+    chmod +x /tmp/yundera-restart-handler.sh
+    nohup /tmp/yundera-restart-handler.sh > /tmp/yundera-restart.log 2>&1 &
+    
+    echo "🚀 Background restart handler launched"
