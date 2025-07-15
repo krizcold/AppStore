@@ -145,7 +145,23 @@ x-casaos:
           PROJECT_NAME="yunderagithubcompiler"
           
           # Method 1: Use CasaOS API to apply settings (preferred)
-          echo "🔄 Method 1: Trying CasaOS API to apply compose settings..."
+          echo "🔄 Method 1: First, let's find the correct app name..."
+          
+          # Get list of installed compose apps to find the correct name
+          echo "📋 Getting list of installed compose apps..."
+          curl -s "http://localhost:8080/v2/app_management/compose" > /tmp/casaos-apps.log 2>&1
+          cat /tmp/casaos-apps.log
+          
+          # Try to extract the actual app name (could be different from project name)
+          ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*yundera[^"]*"' /tmp/casaos-apps.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
+          if [ -n "$ACTUAL_APP_NAME" ]; then
+            echo "🎯 Found actual app name: $ACTUAL_APP_NAME"
+            PROJECT_NAME="$ACTUAL_APP_NAME"
+          else
+            echo "⚠️  Could not find app name containing 'yundera', using default: $PROJECT_NAME"
+          fi
+          
+          echo "🔄 Trying CasaOS API to apply compose settings to: $PROJECT_NAME"
           if curl -s -X PUT "http://localhost:8080/v2/app_management/compose/$PROJECT_NAME" \
                -H "Content-Type: application/yaml" \
                --data-binary "@$COMPOSE_FILE" > /tmp/casaos-apply.log 2>&1; then
