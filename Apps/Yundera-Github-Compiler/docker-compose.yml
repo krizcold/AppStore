@@ -111,41 +111,46 @@ x-casaos:
   index: /
   webui_port: 3000
   pre-install-cmd: |
-    # Create a background restart handler
+    # Create a background restart handler that monitors docker-compose.yml changes
     cat > /tmp/yundera-restart-handler.sh << 'EOF'
     #!/bin/bash
-    echo "🔄 Yundera restart handler started, waiting for signal..."
+    echo "🔄 Yundera restart handler started, monitoring docker-compose.yml..."
     echo "🕐 Current time: $(date)"
     
-    # Wait for signal file for up to 30 seconds with debug info
-    counter=0
-    max_wait=30
+    COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
+    echo "📁 Monitoring compose file: $COMPOSE_FILE"
     
-    while [ $counter -lt $max_wait ]; do
-      echo "🔍 Checking for signal file... (attempt $counter/$max_wait)"
+    # Check every 3 seconds for up to 30 seconds (10 attempts)
+    counter=0
+    max_attempts=10
+    
+    while [ $counter -lt $max_attempts ]; do
+      echo "🔍 Checking for docker.sock in compose file... (attempt $((counter + 1))/$max_attempts)"
       
-      if [ -f "/tmp/yundera-restart-signal" ]; then
-        echo "📡 Restart signal received, executing restart..."
-        
-        # Get the compose file path from the signal file
-        COMPOSE_FILE=$(cat /tmp/yundera-restart-signal)
-        echo "📁 Using compose file: $COMPOSE_FILE"
-        
-        # Execute the restart command
-        echo "🚀 Executing: docker-compose -f $COMPOSE_FILE up -d --force-recreate yunderagithubcompiler"
-        docker-compose -f "$COMPOSE_FILE" up -d --force-recreate yunderagithubcompiler
-        
-        # Clean up
-        rm -f /tmp/yundera-restart-signal
-        echo "✅ Restart completed, handler exiting at $(date)"
-        exit 0
+      if [ -f "$COMPOSE_FILE" ]; then
+        # Check if docker.sock is now in the compose file
+        if grep -q "/var/run/docker.sock" "$COMPOSE_FILE"; then
+          echo "📡 Docker socket detected in compose file! Triggering restart..."
+          echo "📁 Using compose file: $COMPOSE_FILE"
+          
+          # Execute the restart command
+          echo "🚀 Executing: docker-compose -f $COMPOSE_FILE up -d --force-recreate yunderagithubcompiler"
+          docker-compose -f "$COMPOSE_FILE" up -d --force-recreate yunderagithubcompiler
+          
+          echo "✅ Restart completed, handler exiting at $(date)"
+          exit 0
+        else
+          echo "⏳ Docker socket not found yet in compose file..."
+        fi
+      else
+        echo "⚠️  Compose file not found: $COMPOSE_FILE"
       fi
       
-      sleep 1
+      sleep 3
       counter=$((counter + 1))
     done
     
-    echo "⏰ Timeout reached after $max_wait seconds, handler exiting at $(date)"
+    echo "⏰ Timeout reached after $((max_attempts * 3)) seconds, handler exiting at $(date)"
     exit 1
     EOF
     
