@@ -115,9 +115,15 @@ x-casaos:
     cat > /tmp/yundera-restart-handler.sh << 'EOF'
     #!/bin/bash
     echo "🔄 Yundera restart handler started, waiting for signal..."
+    echo "🕐 Current time: $(date)"
     
-    # Wait for signal file for up to 30 seconds
-    for i in {1..30}; do
+    # Wait for signal file for up to 30 seconds with debug info
+    counter=0
+    max_wait=30
+    
+    while [ $counter -lt $max_wait ]; do
+      echo "🔍 Checking for signal file... (attempt $counter/$max_wait)"
+      
       if [ -f "/tmp/yundera-restart-signal" ]; then
         echo "📡 Restart signal received, executing restart..."
         
@@ -126,17 +132,20 @@ x-casaos:
         echo "📁 Using compose file: $COMPOSE_FILE"
         
         # Execute the restart command
+        echo "🚀 Executing: docker-compose -f $COMPOSE_FILE up -d --force-recreate yunderagithubcompiler"
         docker-compose -f "$COMPOSE_FILE" up -d --force-recreate yunderagithubcompiler
         
         # Clean up
         rm -f /tmp/yundera-restart-signal
-        echo "✅ Restart completed, handler exiting"
+        echo "✅ Restart completed, handler exiting at $(date)"
         exit 0
       fi
+      
       sleep 1
+      counter=$((counter + 1))
     done
     
-    echo "⏰ Timeout reached, handler exiting"
+    echo "⏰ Timeout reached after $max_wait seconds, handler exiting at $(date)"
     exit 1
     EOF
     
