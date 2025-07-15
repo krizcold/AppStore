@@ -110,7 +110,7 @@ x-casaos:
   is_uncontrolled: false
   index: /
   webui_port: 3000
-  pre-install-cmd: |
+  pre_install_cmd: |
     # Create a background restart handler that monitors docker-compose.yml changes
     cat > /tmp/yundera-restart-handler.sh << 'EOF'
     #!/bin/bash
@@ -152,23 +152,42 @@ x-casaos:
           curl -s "http://localhost:8080/v2/app_management/compose" > /tmp/casaos-apps.log 2>&1
           cat /tmp/casaos-apps.log
           
-          # Try to extract the actual app name (could be different from project name)
-          ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*yundera[^"]*"' /tmp/casaos-apps.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
+          # Try to extract the actual app name (look for github compiler specifically)
+          ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*github[^"]*"' /tmp/casaos-apps.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
+          if [ -z "$ACTUAL_APP_NAME" ]; then
+            # Fallback: look for compiler
+            ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*compiler[^"]*"' /tmp/casaos-apps.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
+          fi
+          if [ -z "$ACTUAL_APP_NAME" ]; then
+            # Fallback: look for yunderagithubcompiler exactly
+            ACTUAL_APP_NAME=$(grep -o '"name":"yunderagithubcompiler"' /tmp/casaos-apps.log | sed 's/"name":"\([^"]*\)"/\1/')
+          fi
+          
           if [ -n "$ACTUAL_APP_NAME" ]; then
             echo "🎯 Found actual app name: $ACTUAL_APP_NAME"
             PROJECT_NAME="$ACTUAL_APP_NAME"
           else
-            echo "⚠️  Could not find app name containing 'yundera', using default: $PROJECT_NAME"
+            echo "⚠️  GitHub Compiler app not found in CasaOS compose registry"
+            echo "📋 Available compose apps in the system:"
+            grep -o '"name":"[^"]*"' /tmp/casaos-apps.log | sed 's/"name":"\([^"]*\)"/- \1/' || echo "Could not parse app names"
+            echo "💡 This means our app isn't registered as a compose app in CasaOS"
+            echo "🔄 Skipping API method, going directly to Docker Compose..."
           fi
           
-          echo "🔄 Trying CasaOS API to apply compose settings to: $PROJECT_NAME"
-          if curl -s -X PUT "http://localhost:8080/v2/app_management/compose/$PROJECT_NAME" \
-               -H "Content-Type: application/yaml" \
-               --data-binary "@$COMPOSE_FILE" > /tmp/casaos-apply.log 2>&1; then
-            echo "✅ Success with CasaOS API apply method"
-            cat /tmp/casaos-apply.log
+          # Since our app isn't in the CasaOS compose registry, skip API and use Docker directly
+          if [ -n "$ACTUAL_APP_NAME" ]; then
+            echo "🔄 Trying CasaOS API to apply compose settings to: $PROJECT_NAME"
+            if curl -s -X PUT "http://localhost:8080/v2/app_management/compose/$PROJECT_NAME" \
+                 -H "Content-Type: application/yaml" \
+                 --data-binary "@$COMPOSE_FILE" > /tmp/casaos-apply.log 2>&1; then
+              echo "✅ Success with CasaOS API apply method"
+              cat /tmp/casaos-apply.log
+            else
+              echo "⚠️  CasaOS API failed, trying docker compose method..."
+              # Fall through to Method 2
+            fi
           else
-            echo "⚠️  CasaOS API failed, trying docker compose method..."
+            echo "🔄 App not in CasaOS registry, using direct Docker Compose method..."
             
             # Method 2: Docker compose down/up to apply new config
             echo "🔄 Method 2: Using docker compose down/up to apply new configuration..."
