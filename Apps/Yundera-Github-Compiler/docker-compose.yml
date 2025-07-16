@@ -111,6 +111,16 @@ x-casaos:
     echo "📁 Target compose file: $COMPOSE_FILE"
     echo "🐳 Target container: $CONTAINER_NAME"
     
+    # Get Docker group ID from host system
+    echo "🔍 Detecting Docker group ID..."
+    if [ -S /var/run/docker.sock ]; then
+      DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
+      echo "✅ Docker group ID detected: $DOCKER_GID"
+    else
+      echo "❌ Docker socket not found on host, using fallback GID"
+      DOCKER_GID=999  # Common fallback
+    fi
+    
     # Step 1: Wait for compose file to exist
     echo "🔍 Step 1: Waiting for compose file to exist..."
     counter=0
@@ -167,6 +177,14 @@ x-casaos:
           }
         }' "$COMPOSE_FILE"
         
+        # Add Docker group ID to environment variables
+        echo "🔧 Adding Docker group ID to environment variables..."
+        sed -i '/^[[:space:]]*environment:/,/^[[:space:]]*[^[:space:]]/ {
+          /^[[:space:]]*WEBUI_PORT:/ {
+            a\            DOCKER_GID: "'"$DOCKER_GID"'"
+          }
+        }' "$COMPOSE_FILE"
+        
         echo "✅ Added docker.sock mount to existing volumes section"
       else
         echo "📁 No volumes section found in service, adding one"
@@ -190,6 +208,13 @@ x-casaos:
       # Check for docker.sock mount in the updated service section
       if echo "$UPDATED_SERVICE_SECTION" | grep -q "source: /var/run/docker.sock"; then
         echo "✅ Docker.sock mount successfully added to service volumes section"
+        
+        # Also check if Docker group ID was added
+        if grep -q "DOCKER_GID:" "$COMPOSE_FILE"; then
+          echo "✅ Docker group ID successfully added to environment variables"
+        else
+          echo "⚠️  Docker group ID might not have been added to environment"
+        fi
       else
         echo "❌ Failed to add docker.sock mount to service volumes section"
         exit 1
