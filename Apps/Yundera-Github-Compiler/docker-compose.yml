@@ -5,20 +5,12 @@ services:
     image: krizcold/yundera-github-compiler:latest
     container_name: yunderagithubcompiler
     restart: unless-stopped
-    #user: root
     expose:
       - "3000"
     entrypoint: ["/bin/sh"]
     command:
       - -c
       - |
-        # Temporarily commented out for testing - our modifications might be preventing startup
-        # chmod 644 /app/casaos-config/docker-compose.yml || true
-        # Check if docker socket exists and test permissions
-        # if [ -S /var/run/docker.sock ]; then
-        #   echo "🔍 Docker socket found, testing access..."
-        #   docker --version && echo "✅ Docker access works" || echo "❌ Docker access failed"
-        # fi
         npm run setup
     environment:
       # --> GitHub token for repository access
@@ -62,10 +54,9 @@ services:
         target: /DATA
         read_only: true
 
-      # Temporarily commented out for testing - our modification might be preventing startup
-      # - type: bind
-      #   source: /var/run/docker.sock
-      #   target: /var/run/docker.sock
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
 
     # Connect to the same network as the CasaOS service
     networks:
@@ -113,220 +104,142 @@ x-casaos:
   index: /
   webui_port: 3000
   pre-install-cmd: |
-    # Create a background restart handler that monitors docker-compose.yml changes
-    cat > /tmp/yundera-restart-handler.sh << 'EOF'
+    # Create a simplified watcher that waits for compose file and fixes docker.sock
+    cat > /tmp/yundera-docker-sock-fixer.sh << 'EOF'
     #!/bin/bash
-    echo "🔄 Yundera restart handler started, monitoring docker-compose.yml..."
-    echo "🕐 Current time: $(date)"
+    echo "🔄 Yundera docker.sock fixer started at $(date)"
     
     COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
-    echo "📁 Monitoring compose file: $COMPOSE_FILE"
+    CONTAINER_NAME="yunderagithubcompiler"
     
-    # Check every 3 seconds for up to 30 seconds (10 attempts)
+    echo "📁 Target compose file: $COMPOSE_FILE"
+    echo "🐳 Target container: $CONTAINER_NAME"
+    
+    # Step 1: Wait for compose file to exist
+    echo "🔍 Step 1: Waiting for compose file to exist..."
     counter=0
-    max_attempts=10
+    max_wait=60  # 60 seconds max wait
     
-    while [ $counter -lt $max_attempts ]; do
-      echo "🔍 Checking for docker.sock in compose file... (attempt $((counter + 1))/$max_attempts)"
-      
+    while [ $counter -lt $max_wait ]; do
       if [ -f "$COMPOSE_FILE" ]; then
-        # Check if docker.sock is now in the compose file
-        if grep -q "/var/run/docker.sock" "$COMPOSE_FILE"; then
-          echo "📡 Docker socket detected in compose file! Triggering restart..."
-          echo "📁 Using compose file: $COMPOSE_FILE"
-          
-          # Apply new compose configuration exactly like CasaOS does
-          echo "🚀 Applying new compose configuration like CasaOS applyComposeAppSettings..."
-          
-          # CasaOS uses applyComposeAppSettings which does:
-          # 1. Backs up current compose file
-          # 2. Applies new configuration 
-          # 3. Pulls updated images
-          # 4. Gracefully updates containers
-          
-          PROJECT_NAME="yunderagithubcompiler"
-          
-          # Method 1: Use CasaOS API to apply settings (preferred)
-          echo "🔄 Method 1: First, let's find the correct app name..."
-          
-          # Debug: Check ALL CasaOS app endpoints to find where our app might be
-          echo "📋 Debugging: Checking ALL CasaOS app endpoints..."
-          
-          echo "1️⃣ Compose apps:"
-          curl -s "http://localhost:8080/v2/app_management/compose" > /tmp/casaos-compose.log 2>&1
-          cat /tmp/casaos-compose.log
-          
-          echo -e "\n2️⃣ Container apps (V1):"
-          curl -s "http://localhost:8080/v1/container" > /tmp/casaos-container.log 2>&1
-          cat /tmp/casaos-container.log
-          
-          echo -e "\n3️⃣ Container apps (V2):"
-          curl -s "http://localhost:8080/v2/app_management/container" > /tmp/casaos-container-v2.log 2>&1
-          cat /tmp/casaos-container-v2.log
-          
-          echo -e "\n4️⃣ All app management:"
-          curl -s "http://localhost:8080/v2/app_management" > /tmp/casaos-all.log 2>&1
-          cat /tmp/casaos-all.log
-          
-          echo -e "\n5️⃣ Direct Docker check - ALL containers (HOST context):"
-          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-          
-          echo -e "\n🔍 Checking different Docker contexts:"
-          echo "📍 Current Docker context:"
-          docker context list
-          
-          echo -e "\n🐳 Checking if CasaOS container has its own Docker:"
-          docker exec casaos docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null || echo "CasaOS container doesn't have Docker access"
-          
-          echo -e "\n🔍 Looking for Docker sockets:"
-          find /var -name "docker.sock" 2>/dev/null || echo "No additional Docker sockets found"
-          
-          echo -e "\n🔍 Comprehensive search for the missing app:"
-          echo "📍 Checking ALL containers (including stopped):"
-          docker ps -a --filter "name=yundera" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-          docker ps -a --filter "name=github" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-          docker ps -a --filter "name=compiler" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-          
-          echo -e "\n🌐 Checking what's listening on port 3000:"
-          netstat -tlnp | grep :3000 || echo "Nothing listening on port 3000"
-          
-          echo -e "\n🔍 Checking processes with 'yundera' or 'compiler':"
-          ps aux | grep -i "yundera\|compiler\|github" | grep -v grep || echo "No matching processes found"
-          
-          echo -e "\n🗂️ Checking if the app directory exists:"
-          ls -la /DATA/AppData/casaos/apps/ | grep -i yundera || echo "No yundera app directory found"
-          
-          echo -e "\n🔍 Let me check the EXACT container name from compose file:"
-          if [ -f "$COMPOSE_FILE" ]; then
-            CONTAINER_NAME=$(grep "container_name:" "$COMPOSE_FILE" | head -1 | awk '{print $2}')
-            echo "📝 Container name from compose file: $CONTAINER_NAME"
-            echo "🔍 Searching for this exact container:"
-            docker ps -a --filter "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Ports}}"
-          else
-            echo "❌ Compose file not found at $COMPOSE_FILE"
-          fi
-          
-          echo -e "\n6️⃣ Looking for any yundera-related containers:"
-          docker ps --filter "name=yundera" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-          
-          echo -e "\n7️⃣ Looking for any github-related containers:"
-          docker ps --filter "name=github" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-          
-          echo -e "\n8️⃣ Looking for any compiler-related containers:"
-          docker ps --filter "name=compiler" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-          
-          echo -e "\n9️⃣ All containers with 'casaos' labels:"
-          docker ps --filter "label=casaos" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-          
-          # Search for our app in ALL the endpoints we just checked
-          echo -e "\n🔍 Searching for our app in all CasaOS registries..."
-          
-          ACTUAL_APP_NAME=""
-          APP_TYPE=""
-          
-          # Check compose apps
-          if grep -q "github\|compiler\|yunderagithubcompiler" /tmp/casaos-compose.log; then
-            ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*github[^"]*"' /tmp/casaos-compose.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
-            [ -z "$ACTUAL_APP_NAME" ] && ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*compiler[^"]*"' /tmp/casaos-compose.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
-            [ -z "$ACTUAL_APP_NAME" ] && ACTUAL_APP_NAME=$(grep -o '"name":"yunderagithubcompiler"' /tmp/casaos-compose.log | sed 's/"name":"\([^"]*\)"/\1/')
-            [ -n "$ACTUAL_APP_NAME" ] && APP_TYPE="compose"
-          fi
-          
-          # Check container apps (V1)
-          if [ -z "$ACTUAL_APP_NAME" ] && grep -q "github\|compiler\|yunderagithub" /tmp/casaos-container.log; then
-            ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*github[^"]*"' /tmp/casaos-container.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
-            [ -z "$ACTUAL_APP_NAME" ] && ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*compiler[^"]*"' /tmp/casaos-container.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
-            [ -z "$ACTUAL_APP_NAME" ] && ACTUAL_APP_NAME=$(grep -o '"name":"yunderagithubcompiler"' /tmp/casaos-container.log | sed 's/"name":"\([^"]*\)"/\1/')
-            [ -n "$ACTUAL_APP_NAME" ] && APP_TYPE="container-v1"
-          fi
-          
-          # Check container apps (V2)
-          if [ -z "$ACTUAL_APP_NAME" ] && grep -q "github\|compiler\|yunderagithub" /tmp/casaos-container-v2.log; then
-            ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*github[^"]*"' /tmp/casaos-container-v2.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
-            [ -z "$ACTUAL_APP_NAME" ] && ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*compiler[^"]*"' /tmp/casaos-container-v2.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
-            [ -z "$ACTUAL_APP_NAME" ] && ACTUAL_APP_NAME=$(grep -o '"name":"yunderagithubcompiler"' /tmp/casaos-container-v2.log | sed 's/"name":"\([^"]*\)"/\1/')
-            [ -n "$ACTUAL_APP_NAME" ] && APP_TYPE="container-v2"
-          fi
-          
-          if [ -n "$ACTUAL_APP_NAME" ]; then
-            echo "🎯 Found app: $ACTUAL_APP_NAME (type: $APP_TYPE)"
-          else
-            echo "❌ App not found in ANY CasaOS registry!"
-            echo "💡 This suggests the app was never properly installed through CasaOS"
-            echo "🐳 But Docker shows the container exists, so it was created somehow"
-            echo "🚨 CRITICAL: We have a 'ghost' container - exists in Docker but not in CasaOS"
-          fi
-          
-          # Method 1: Retry CasaOS API with delays (app might need time to register)
-          echo "🔄 Method 1: Trying CasaOS API with retries (app might need time to register)..."
-          
-          API_SUCCESS=false
-          for attempt in {1..5}; do
-            echo "🔄 API Attempt $attempt/5: Checking if app is now registered..."
-            
-            # Refresh the app list
-            curl -s "http://localhost:8080/v2/app_management/compose" > /tmp/casaos-apps-retry.log 2>&1
-            
-            # Look for our app again
-            RETRY_APP_NAME=$(grep -o '"name":"[^"]*github[^"]*"' /tmp/casaos-apps-retry.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
-            if [ -z "$RETRY_APP_NAME" ]; then
-              RETRY_APP_NAME=$(grep -o '"name":"[^"]*compiler[^"]*"' /tmp/casaos-apps-retry.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
-            fi
-            if [ -z "$RETRY_APP_NAME" ]; then
-              RETRY_APP_NAME=$(grep -o '"name":"yunderagithubcompiler"' /tmp/casaos-apps-retry.log | sed 's/"name":"\([^"]*\)"/\1/')
-            fi
-            
-            if [ -n "$RETRY_APP_NAME" ]; then
-              echo "🎯 Found app in registry: $RETRY_APP_NAME"
-              
-              echo "🔄 Trying CasaOS API to apply settings to: $RETRY_APP_NAME"
-              if curl -s -X PUT "http://localhost:8080/v2/app_management/compose/$RETRY_APP_NAME" \
-                   -H "Content-Type: application/yaml" \
-                   --data-binary "@$COMPOSE_FILE" > /tmp/casaos-apply-retry.log 2>&1; then
-                echo "✅ Success with CasaOS API apply method!"
-                cat /tmp/casaos-apply-retry.log
-                API_SUCCESS=true
-                break
-              else
-                echo "⚠️  API call failed on attempt $attempt"
-                cat /tmp/casaos-apply-retry.log
-              fi
-            else
-              echo "⏳ App not found in registry yet (attempt $attempt/5)"
-            fi
-            
-            if [ $attempt -lt 5 ]; then
-              echo "⏰ Waiting 3 seconds before next attempt..."
-              sleep 3
-            fi
-          done
-          
-          # If API method failed after all retries, we're out of options
-          if [ "$API_SUCCESS" = false ]; then
-            echo "❌ All API attempts failed. The app may not be compatible with CasaOS compose management."
-            echo "💡 You may need to restart manually through the CasaOS UI."
-            exit 1
-          fi
-          
-          echo "✅ Restart completed, handler exiting at $(date)"
-          exit 0
-        else
-          echo "⏳ Docker socket not found yet in compose file..."
-        fi
-      else
-        echo "⚠️  Compose file not found: $COMPOSE_FILE"
+        echo "✅ Compose file exists after $counter seconds"
+        break
       fi
-      
-      sleep 3
+      echo "⏳ Compose file not found yet... (${counter}s/${max_wait}s)"
+      sleep 1
       counter=$((counter + 1))
     done
     
-    echo "⏰ Timeout reached after $((max_attempts * 3)) seconds, handler exiting at $(date)"
-    exit 1
+    if [ ! -f "$COMPOSE_FILE" ]; then
+      echo "❌ Compose file not found after ${max_wait}s, exiting"
+      exit 1
+    fi
+    
+    # Step 2: Check if docker.sock is already mounted
+    echo "🔍 Step 2: Checking docker.sock mount status..."
+    if grep -q "/var/run/docker.sock:/var/run/docker.sock" "$COMPOSE_FILE"; then
+      echo "✅ Docker.sock is already mounted in compose file"
+    else
+      echo "❌ Docker.sock is NOT mounted in compose file"
+      
+      # Step 3: Add docker.sock mount
+      echo "🔧 Step 3: Adding docker.sock mount to compose file..."
+      
+      # Backup original
+      cp "$COMPOSE_FILE" "$COMPOSE_FILE.backup"
+      echo "📋 Backed up compose file to $COMPOSE_FILE.backup"
+      
+      # Add docker.sock mount after the last volume entry
+      if grep -q "volumes:" "$COMPOSE_FILE"; then
+        # Find the last volume line and add docker.sock after it
+        sed -i '/volumes:/,/^[[:space:]]*[^[:space:]-]/ {
+          /^[[:space:]]*-/ {
+            $ a\      - /var/run/docker.sock:/var/run/docker.sock
+          }
+        }' "$COMPOSE_FILE"
+        echo "✅ Added docker.sock mount to existing volumes section"
+      else
+        # No volumes section, add one
+        sed -i '/^[[:space:]]*yunderagithubcompiler:/,/^[[:space:]]*[^[:space:]]/ {
+          /^[[:space:]]*[^[:space:]]/ i\    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock
+        }' "$COMPOSE_FILE"
+        echo "✅ Added volumes section with docker.sock mount"
+      fi
+      
+      # Verify the change
+      if grep -q "/var/run/docker.sock:/var/run/docker.sock" "$COMPOSE_FILE"; then
+        echo "✅ Docker.sock mount successfully added to compose file"
+      else
+        echo "❌ Failed to add docker.sock mount to compose file"
+        exit 1
+      fi
+    fi
+    
+    # Step 4: Wait for container to be created
+    echo "🔍 Step 4: Waiting for container to be created..."
+    counter=0
+    max_wait=30  # 30 seconds max wait
+    
+    while [ $counter -lt $max_wait ]; do
+      if docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
+        echo "✅ Container $CONTAINER_NAME found after $counter seconds"
+        break
+      fi
+      echo "⏳ Container not found yet... (${counter}s/${max_wait}s)"
+      sleep 1
+      counter=$((counter + 1))
+    done
+    
+    if ! docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
+      echo "❌ Container $CONTAINER_NAME not found after ${max_wait}s"
+      echo "📋 Available containers:"
+      docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+      exit 1
+    fi
+    
+    # Step 5: Restart the container with new compose file
+    echo "🔄 Step 5: Restarting container with updated compose file..."
+    
+    # Get container status
+    CONTAINER_STATUS=$(docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Status}}")
+    echo "📊 Container status: $CONTAINER_STATUS"
+    
+    # Stop the container first
+    echo "🛑 Stopping container $CONTAINER_NAME..."
+    docker stop "$CONTAINER_NAME" || echo "⚠️  Container might not be running"
+    
+    # Remove the container
+    echo "🗑️  Removing container $CONTAINER_NAME..."
+    docker rm "$CONTAINER_NAME" || echo "⚠️  Container might not exist"
+    
+    # Recreate with docker-compose
+    echo "🚀 Recreating container with docker-compose..."
+    cd "/DATA/AppData/casaos/apps/yunderagithubcompiler"
+    docker-compose up -d
+    
+    # Verify the restart
+    echo "✅ Step 6: Verifying restart..."
+    sleep 5
+    
+    NEW_STATUS=$(docker ps --filter "name=$CONTAINER_NAME" --format "{{.Status}}")
+    if [ -n "$NEW_STATUS" ]; then
+      echo "✅ Container $CONTAINER_NAME is now running: $NEW_STATUS"
+      
+      # Check if docker.sock is actually mounted
+      if docker exec "$CONTAINER_NAME" test -S /var/run/docker.sock 2>/dev/null; then
+        echo "✅ Docker.sock is successfully mounted and accessible in container"
+      else
+        echo "❌ Docker.sock is NOT accessible in container"
+      fi
+    else
+      echo "❌ Container $CONTAINER_NAME is not running after restart"
+    fi
+    
+    echo "🏁 Watcher script completed at $(date)"
     EOF
     
     # Make it executable and run in background
-    chmod +x /tmp/yundera-restart-handler.sh
-    nohup /tmp/yundera-restart-handler.sh > /tmp/yundera-restart.log 2>&1 &
+    chmod +x /tmp/yundera-docker-sock-fixer.sh
+    nohup /tmp/yundera-docker-sock-fixer.sh > /tmp/yundera-docker-sock-fixer.log 2>&1 &
     
-    echo "🚀 Background restart handler launched"
+    echo "🚀 Docker.sock fixer launched, check logs at /tmp/yundera-docker-sock-fixer.log"
