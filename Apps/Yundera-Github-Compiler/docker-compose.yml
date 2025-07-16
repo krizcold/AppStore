@@ -147,31 +147,65 @@ x-casaos:
           # Method 1: Use CasaOS API to apply settings (preferred)
           echo "🔄 Method 1: First, let's find the correct app name..."
           
-          # Get list of installed compose apps to find the correct name
-          echo "📋 Getting list of installed compose apps..."
-          curl -s "http://localhost:8080/v2/app_management/compose" > /tmp/casaos-apps.log 2>&1
-          cat /tmp/casaos-apps.log
+          # Debug: Check ALL CasaOS app endpoints to find where our app might be
+          echo "📋 Debugging: Checking ALL CasaOS app endpoints..."
           
-          # Try to extract the actual app name (look for github compiler specifically)
-          ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*github[^"]*"' /tmp/casaos-apps.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
-          if [ -z "$ACTUAL_APP_NAME" ]; then
-            # Fallback: look for compiler
-            ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*compiler[^"]*"' /tmp/casaos-apps.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
+          echo "1️⃣ Compose apps:"
+          curl -s "http://localhost:8080/v2/app_management/compose" > /tmp/casaos-compose.log 2>&1
+          cat /tmp/casaos-compose.log
+          
+          echo -e "\n2️⃣ Container apps (V1):"
+          curl -s "http://localhost:8080/v1/container" > /tmp/casaos-container.log 2>&1
+          cat /tmp/casaos-container.log
+          
+          echo -e "\n3️⃣ Container apps (V2):"
+          curl -s "http://localhost:8080/v2/app_management/container" > /tmp/casaos-container-v2.log 2>&1
+          cat /tmp/casaos-container-v2.log
+          
+          echo -e "\n4️⃣ All app management:"
+          curl -s "http://localhost:8080/v2/app_management" > /tmp/casaos-all.log 2>&1
+          cat /tmp/casaos-all.log
+          
+          echo -e "\n5️⃣ Direct Docker check:"
+          docker ps --filter "name=yunderagithub" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+          
+          # Search for our app in ALL the endpoints we just checked
+          echo -e "\n🔍 Searching for our app in all CasaOS registries..."
+          
+          ACTUAL_APP_NAME=""
+          APP_TYPE=""
+          
+          # Check compose apps
+          if grep -q "github\|compiler\|yunderagithubcompiler" /tmp/casaos-compose.log; then
+            ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*github[^"]*"' /tmp/casaos-compose.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
+            [ -z "$ACTUAL_APP_NAME" ] && ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*compiler[^"]*"' /tmp/casaos-compose.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
+            [ -z "$ACTUAL_APP_NAME" ] && ACTUAL_APP_NAME=$(grep -o '"name":"yunderagithubcompiler"' /tmp/casaos-compose.log | sed 's/"name":"\([^"]*\)"/\1/')
+            [ -n "$ACTUAL_APP_NAME" ] && APP_TYPE="compose"
           fi
-          if [ -z "$ACTUAL_APP_NAME" ]; then
-            # Fallback: look for yunderagithubcompiler exactly
-            ACTUAL_APP_NAME=$(grep -o '"name":"yunderagithubcompiler"' /tmp/casaos-apps.log | sed 's/"name":"\([^"]*\)"/\1/')
+          
+          # Check container apps (V1)
+          if [ -z "$ACTUAL_APP_NAME" ] && grep -q "github\|compiler\|yunderagithub" /tmp/casaos-container.log; then
+            ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*github[^"]*"' /tmp/casaos-container.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
+            [ -z "$ACTUAL_APP_NAME" ] && ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*compiler[^"]*"' /tmp/casaos-container.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
+            [ -z "$ACTUAL_APP_NAME" ] && ACTUAL_APP_NAME=$(grep -o '"name":"yunderagithubcompiler"' /tmp/casaos-container.log | sed 's/"name":"\([^"]*\)"/\1/')
+            [ -n "$ACTUAL_APP_NAME" ] && APP_TYPE="container-v1"
+          fi
+          
+          # Check container apps (V2)
+          if [ -z "$ACTUAL_APP_NAME" ] && grep -q "github\|compiler\|yunderagithub" /tmp/casaos-container-v2.log; then
+            ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*github[^"]*"' /tmp/casaos-container-v2.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
+            [ -z "$ACTUAL_APP_NAME" ] && ACTUAL_APP_NAME=$(grep -o '"name":"[^"]*compiler[^"]*"' /tmp/casaos-container-v2.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
+            [ -z "$ACTUAL_APP_NAME" ] && ACTUAL_APP_NAME=$(grep -o '"name":"yunderagithubcompiler"' /tmp/casaos-container-v2.log | sed 's/"name":"\([^"]*\)"/\1/')
+            [ -n "$ACTUAL_APP_NAME" ] && APP_TYPE="container-v2"
           fi
           
           if [ -n "$ACTUAL_APP_NAME" ]; then
-            echo "🎯 Found actual app name: $ACTUAL_APP_NAME"
-            PROJECT_NAME="$ACTUAL_APP_NAME"
+            echo "🎯 Found app: $ACTUAL_APP_NAME (type: $APP_TYPE)"
           else
-            echo "⚠️  GitHub Compiler app not found in CasaOS compose registry"
-            echo "📋 Available compose apps in the system:"
-            grep -o '"name":"[^"]*"' /tmp/casaos-apps.log | sed 's/"name":"\([^"]*\)"/- \1/' || echo "Could not parse app names"
-            echo "💡 This means our app isn't registered as a compose app in CasaOS"
-            echo "🔄 Skipping API method, going directly to Docker Compose..."
+            echo "❌ App not found in ANY CasaOS registry!"
+            echo "💡 This suggests the app was never properly installed through CasaOS"
+            echo "🐳 But Docker shows the container exists, so it was created somehow"
+            echo "🚨 CRITICAL: We have a 'ghost' container - exists in Docker but not in CasaOS"
           fi
           
           # Method 1: Retry CasaOS API with delays (app might need time to register)
