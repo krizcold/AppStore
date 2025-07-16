@@ -159,13 +159,56 @@ x-casaos:
       if echo "$SERVICE_SECTION" | grep -q "volumes:"; then
         echo "📁 Found existing volumes section in service"
         
-        # Add docker.sock mount after the last volume entry in the service
-        # Look for the last volume entry (with read_only: true) and add after it
+        # DEBUG: Check permissions and file status
+        echo "🔍 DEBUG: Checking file permissions and access..."
+        ls -la "$COMPOSE_FILE"
+        echo "🔍 DEBUG: Current user and groups:"
+        id
+        echo "🔍 DEBUG: File ownership:"
+        stat "$COMPOSE_FILE"
+        echo "🔍 DEBUG: Can we write to the file?"
+        if [ -w "$COMPOSE_FILE" ]; then
+          echo "✅ File is writable"
+        else
+          echo "❌ File is NOT writable"
+        fi
+        
+        # DEBUG: Test if sed pattern matches
+        echo "🔍 DEBUG: Testing if sed pattern matches..."
+        if grep -n "read_only:[[:space:]]*true" "$COMPOSE_FILE"; then
+          echo "✅ Pattern 'read_only: true' found in file"
+        else
+          echo "❌ Pattern 'read_only: true' NOT found in file"
+          echo "🔍 DEBUG: Looking for any 'read_only' patterns..."
+          grep -n "read_only" "$COMPOSE_FILE" || echo "No read_only found at all"
+        fi
+        
+        # DEBUG: Try a simpler sed command first
+        echo "🔍 DEBUG: Trying simple sed test..."
+        sed -i 's/read_only: true/read_only: true/' "$COMPOSE_FILE"
+        if [ $? -eq 0 ]; then
+          echo "✅ Simple sed command worked"
+        else
+          echo "❌ Simple sed command failed with exit code: $?"
+        fi
+        
+        # Now try the actual sed command with debugging
+        echo "🔍 DEBUG: Executing main sed command..."
         sed -i '/^[[:space:]]*yunderagithubcompiler:/,/^[[:space:]]*networks:/ {
           /^[[:space:]]*read_only:[[:space:]]*true/ {
             a\            - type: bind\n              source: /var/run/docker.sock\n              target: /var/run/docker.sock
           }
         }' "$COMPOSE_FILE"
+        
+        SED_EXIT_CODE=$?
+        echo "🔍 DEBUG: Sed command exit code: $SED_EXIT_CODE"
+        
+        if [ $SED_EXIT_CODE -eq 0 ]; then
+          echo "✅ Sed command executed successfully"
+        else
+          echo "❌ Sed command failed with exit code: $SED_EXIT_CODE"
+        fi
+        
         echo "✅ Added docker.sock mount to existing volumes section"
       else
         echo "📁 No volumes section found in service, adding one"
