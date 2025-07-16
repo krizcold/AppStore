@@ -204,18 +204,44 @@ x-casaos:
     CONTAINER_STATUS=$(docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Status}}")
     echo "📊 Container status: $CONTAINER_STATUS"
     
-    # Stop the container first
-    echo "🛑 Stopping container $CONTAINER_NAME..."
-    docker stop "$CONTAINER_NAME" || echo "⚠️  Container might not be running"
-    
-    # Remove the container
-    echo "🗑️  Removing container $CONTAINER_NAME..."
-    docker rm "$CONTAINER_NAME" || echo "⚠️  Container might not exist"
-    
-    # Recreate with docker-compose
-    echo "🚀 Recreating container with docker-compose..."
-    cd "/DATA/AppData/casaos/apps/yunderagithubcompiler"
-    docker-compose up -d
+    # Try Method 1: Gentle restart (just restart the container)
+    echo "🔄 Method 1: Attempting gentle restart..."
+    if docker restart "$CONTAINER_NAME" 2>/dev/null; then
+      echo "✅ Container restarted successfully with gentle method"
+      sleep 3
+      
+      # Check if docker.sock is accessible after restart
+      if docker exec "$CONTAINER_NAME" test -S /var/run/docker.sock 2>/dev/null; then
+        echo "✅ Docker.sock is accessible after gentle restart - SUCCESS!"
+      else
+        echo "❌ Docker.sock still not accessible after gentle restart"
+        echo "🔄 Falling back to Method 2..."
+        
+        # Method 2: Stop and recreate with docker compose v2
+        echo "🛑 Stopping container $CONTAINER_NAME..."
+        docker stop "$CONTAINER_NAME" || echo "⚠️  Container might not be running"
+        
+        echo "🗑️  Removing container $CONTAINER_NAME..."
+        docker rm "$CONTAINER_NAME" || echo "⚠️  Container might not exist"
+        
+        echo "🚀 Recreating container with docker compose v2..."
+        cd "/DATA/AppData/casaos/apps/yunderagithubcompiler"
+        docker compose up -d
+      fi
+    else
+      echo "❌ Gentle restart failed, trying Method 2..."
+      
+      # Method 2: Stop and recreate with docker compose v2
+      echo "🛑 Stopping container $CONTAINER_NAME..."
+      docker stop "$CONTAINER_NAME" || echo "⚠️  Container might not be running"
+      
+      echo "🗑️  Removing container $CONTAINER_NAME..."
+      docker rm "$CONTAINER_NAME" || echo "⚠️  Container might not exist"
+      
+      echo "🚀 Recreating container with docker compose v2..."
+      cd "/DATA/AppData/casaos/apps/yunderagithubcompiler"
+      docker compose up -d
+    fi
     
     # Verify the restart
     echo "✅ Step 6: Verifying restart..."
