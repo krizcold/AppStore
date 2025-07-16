@@ -160,10 +160,10 @@ x-casaos:
         echo "📁 Found existing volumes section in service"
         
         # Add docker.sock mount after the last volume entry in the service
-        # Find the line number of the last volume entry before networks or x-casaos
+        # Look for the last volume entry (with read_only: true) and add after it
         sed -i '/^[[:space:]]*yunderagithubcompiler:/,/^[[:space:]]*networks:/ {
-          /^[[:space:]]*-[[:space:]]*.*:.*/ {
-            a\      - /var/run/docker.sock:/var/run/docker.sock
+          /^[[:space:]]*read_only:[[:space:]]*true/ {
+            a\            - type: bind\n              source: /var/run/docker.sock\n              target: /var/run/docker.sock
           }
         }' "$COMPOSE_FILE"
         echo "✅ Added docker.sock mount to existing volumes section"
@@ -172,7 +172,7 @@ x-casaos:
         
         # Add volumes section with docker.sock mount before networks
         sed -i '/^[[:space:]]*yunderagithubcompiler:/,/^[[:space:]]*networks:/ {
-          /^[[:space:]]*networks:/ i\    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n
+          /^[[:space:]]*networks:/ i\    volumes:\n        - type: bind\n          source: /var/run/docker.sock\n          target: /var/run/docker.sock\n
         }' "$COMPOSE_FILE"
         echo "✅ Added volumes section with docker.sock mount"
       fi
