@@ -7,6 +7,7 @@ services:
     restart: unless-stopped
     expose:
       - "3000"
+    user: "root"
     entrypoint: ["/bin/sh"]
     command:
       - -c
@@ -159,55 +160,12 @@ x-casaos:
       if echo "$SERVICE_SECTION" | grep -q "volumes:"; then
         echo "📁 Found existing volumes section in service"
         
-        # DEBUG: Check permissions and file status
-        echo "🔍 DEBUG: Checking file permissions and access..."
-        ls -la "$COMPOSE_FILE"
-        echo "🔍 DEBUG: Current user and groups:"
-        id
-        echo "🔍 DEBUG: File ownership:"
-        stat "$COMPOSE_FILE"
-        echo "🔍 DEBUG: Can we write to the file?"
-        if [ -w "$COMPOSE_FILE" ]; then
-          echo "✅ File is writable"
-        else
-          echo "❌ File is NOT writable"
-        fi
-        
-        # DEBUG: Test if sed pattern matches
-        echo "🔍 DEBUG: Testing if sed pattern matches..."
-        if grep -n "read_only:[[:space:]]*true" "$COMPOSE_FILE"; then
-          echo "✅ Pattern 'read_only: true' found in file"
-        else
-          echo "❌ Pattern 'read_only: true' NOT found in file"
-          echo "🔍 DEBUG: Looking for any 'read_only' patterns..."
-          grep -n "read_only" "$COMPOSE_FILE" || echo "No read_only found at all"
-        fi
-        
-        # DEBUG: Try a simpler sed command first
-        echo "🔍 DEBUG: Trying simple sed test..."
-        sed -i 's/read_only: true/read_only: true/' "$COMPOSE_FILE"
-        if [ $? -eq 0 ]; then
-          echo "✅ Simple sed command worked"
-        else
-          echo "❌ Simple sed command failed with exit code: $?"
-        fi
-        
-        # Now try the actual sed command with debugging
-        echo "🔍 DEBUG: Executing main sed command..."
+        # Add docker.sock mount to compose file
         sed -i '/^[[:space:]]*volumes:/,/^[[:space:]]*networks:/ {
           /^[[:space:]]*read_only:[[:space:]]*true/ {
             a\            - type: bind\n              source: /var/run/docker.sock\n              target: /var/run/docker.sock
           }
         }' "$COMPOSE_FILE"
-        
-        SED_EXIT_CODE=$?
-        echo "🔍 DEBUG: Sed command exit code: $SED_EXIT_CODE"
-        
-        if [ $SED_EXIT_CODE -eq 0 ]; then
-          echo "✅ Sed command executed successfully"
-        else
-          echo "❌ Sed command failed with exit code: $SED_EXIT_CODE"
-        fi
         
         echo "✅ Added docker.sock mount to existing volumes section"
       else
@@ -267,44 +225,20 @@ x-casaos:
     CONTAINER_STATUS=$(docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Status}}")
     echo "📊 Container status: $CONTAINER_STATUS"
     
-    # Try Method 1: Gentle restart (just restart the container)
-    echo "🔄 Method 1: Attempting gentle restart..."
-    if docker restart "$CONTAINER_NAME" 2>/dev/null; then
-      echo "✅ Container restarted successfully with gentle method"
-      sleep 3
-      
-      # Check if docker.sock is accessible after restart
-      if docker exec "$CONTAINER_NAME" test -S /var/run/docker.sock 2>/dev/null; then
-        echo "✅ Docker.sock is accessible after gentle restart - SUCCESS!"
-      else
-        echo "❌ Docker.sock still not accessible after gentle restart"
-        echo "🔄 Falling back to Method 2..."
-        
-        # Method 2: Stop and recreate with docker compose v2
-        echo "🛑 Stopping container $CONTAINER_NAME..."
-        docker stop "$CONTAINER_NAME" || echo "⚠️  Container might not be running"
-        
-        echo "🗑️  Removing container $CONTAINER_NAME..."
-        docker rm "$CONTAINER_NAME" || echo "⚠️  Container might not exist"
-        
-        echo "🚀 Recreating container with docker compose v2..."
-        cd "/DATA/AppData/casaos/apps/yunderagithubcompiler"
-        docker compose up -d
-      fi
-    else
-      echo "❌ Gentle restart failed, trying Method 2..."
-      
-      # Method 2: Stop and recreate with docker compose v2
-      echo "🛑 Stopping container $CONTAINER_NAME..."
-      docker stop "$CONTAINER_NAME" || echo "⚠️  Container might not be running"
-      
-      echo "🗑️  Removing container $CONTAINER_NAME..."
-      docker rm "$CONTAINER_NAME" || echo "⚠️  Container might not exist"
-      
-      echo "🚀 Recreating container with docker compose v2..."
-      cd "/DATA/AppData/casaos/apps/yunderagithubcompiler"
-      docker compose up -d
-    fi
+    # Recreate container with updated compose file
+    echo "🔄 Step 5: Recreating container with updated compose file..."
+    
+    # Stop and remove container
+    echo "🛑 Stopping container $CONTAINER_NAME..."
+    docker stop "$CONTAINER_NAME" || echo "⚠️  Container might not be running"
+    
+    echo "🗑️  Removing container $CONTAINER_NAME..."
+    docker rm "$CONTAINER_NAME" || echo "⚠️  Container might not exist"
+    
+    # Recreate with docker compose v2
+    echo "🚀 Recreating container with docker compose v2..."
+    cd "/DATA/AppData/casaos/apps/yunderagithubcompiler"
+    docker compose up -d
     
     # Verify the restart
     echo "✅ Step 6: Verifying restart..."
