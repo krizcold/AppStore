@@ -174,36 +174,55 @@ x-casaos:
             echo "🔄 Skipping API method, going directly to Docker Compose..."
           fi
           
-          # Since our app isn't in the CasaOS compose registry, skip API and use Docker directly
-          if [ -n "$ACTUAL_APP_NAME" ]; then
-            echo "🔄 Trying CasaOS API to apply compose settings to: $PROJECT_NAME"
-            if curl -s -X PUT "http://localhost:8080/v2/app_management/compose/$PROJECT_NAME" \
-                 -H "Content-Type: application/yaml" \
-                 --data-binary "@$COMPOSE_FILE" > /tmp/casaos-apply.log 2>&1; then
-              echo "✅ Success with CasaOS API apply method"
-              cat /tmp/casaos-apply.log
-            else
-              echo "⚠️  CasaOS API failed, trying docker compose method..."
-              # Fall through to Method 2
+          # Method 1: Retry CasaOS API with delays (app might need time to register)
+          echo "🔄 Method 1: Trying CasaOS API with retries (app might need time to register)..."
+          
+          API_SUCCESS=false
+          for attempt in {1..5}; do
+            echo "🔄 API Attempt $attempt/5: Checking if app is now registered..."
+            
+            # Refresh the app list
+            curl -s "http://localhost:8080/v2/app_management/compose" > /tmp/casaos-apps-retry.log 2>&1
+            
+            # Look for our app again
+            RETRY_APP_NAME=$(grep -o '"name":"[^"]*github[^"]*"' /tmp/casaos-apps-retry.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
+            if [ -z "$RETRY_APP_NAME" ]; then
+              RETRY_APP_NAME=$(grep -o '"name":"[^"]*compiler[^"]*"' /tmp/casaos-apps-retry.log | sed 's/"name":"\([^"]*\)"/\1/' | head -1)
             fi
-          else
-            echo "🔄 App not in CasaOS registry, using direct Docker Compose method..."
-            
-            # Method 2: Docker compose down/up to apply new config
-            echo "🔄 Method 2: Using docker compose down/up to apply new configuration..."
-            
-            # Stop the current containers
-            echo "🛑 Stopping containers..."
-            docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" down
-            
-            # Start with new configuration
-            echo "🚀 Starting with new configuration..."
-            if docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" up -d; then
-              echo "✅ Success with docker compose down/up method"
-            else
-              echo "❌ Docker compose down/up failed"
-              exit 1
+            if [ -z "$RETRY_APP_NAME" ]; then
+              RETRY_APP_NAME=$(grep -o '"name":"yunderagithubcompiler"' /tmp/casaos-apps-retry.log | sed 's/"name":"\([^"]*\)"/\1/')
             fi
+            
+            if [ -n "$RETRY_APP_NAME" ]; then
+              echo "🎯 Found app in registry: $RETRY_APP_NAME"
+              
+              echo "🔄 Trying CasaOS API to apply settings to: $RETRY_APP_NAME"
+              if curl -s -X PUT "http://localhost:8080/v2/app_management/compose/$RETRY_APP_NAME" \
+                   -H "Content-Type: application/yaml" \
+                   --data-binary "@$COMPOSE_FILE" > /tmp/casaos-apply-retry.log 2>&1; then
+                echo "✅ Success with CasaOS API apply method!"
+                cat /tmp/casaos-apply-retry.log
+                API_SUCCESS=true
+                break
+              else
+                echo "⚠️  API call failed on attempt $attempt"
+                cat /tmp/casaos-apply-retry.log
+              fi
+            else
+              echo "⏳ App not found in registry yet (attempt $attempt/5)"
+            fi
+            
+            if [ $attempt -lt 5 ]; then
+              echo "⏰ Waiting 3 seconds before next attempt..."
+              sleep 3
+            fi
+          done
+          
+          # If API method failed after all retries, we're out of options
+          if [ "$API_SUCCESS" = false ]; then
+            echo "❌ All API attempts failed. The app may not be compatible with CasaOS compose management."
+            echo "💡 You may need to restart manually through the CasaOS UI."
+            exit 1
           fi
           
           echo "✅ Restart completed, handler exiting at $(date)"
