@@ -179,6 +179,21 @@ x-casaos:
           echo -e "\n🔍 Looking for Docker sockets:"
           find /var -name "docker.sock" 2>/dev/null || echo "No additional Docker sockets found"
           
+          echo -e "\n🔍 Comprehensive search for the missing app:"
+          echo "📍 Checking ALL containers (including stopped):"
+          docker ps -a --filter "name=yundera" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+          docker ps -a --filter "name=github" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+          docker ps -a --filter "name=compiler" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+          
+          echo -e "\n🌐 Checking what's listening on port 3000:"
+          netstat -tlnp | grep :3000 || echo "Nothing listening on port 3000"
+          
+          echo -e "\n🔍 Checking processes with 'yundera' or 'compiler':"
+          ps aux | grep -i "yundera\|compiler\|github" | grep -v grep || echo "No matching processes found"
+          
+          echo -e "\n🗂️ Checking if the app directory exists:"
+          ls -la /DATA/AppData/casaos/apps/ | grep -i yundera || echo "No yundera app directory found"
+          
           echo -e "\n6️⃣ Looking for any yundera-related containers:"
           docker ps --filter "name=yundera" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
           
