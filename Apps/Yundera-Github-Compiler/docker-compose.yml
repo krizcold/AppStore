@@ -43,11 +43,6 @@ services:
         source: /DATA/AppData/yunderagithubcompiler/repos
         target: /app/repos
 
-      # Mount our app directory as read-write to modify compose file
-      - type: bind
-        source: /DATA/AppData/casaos/apps/yunderagithubcompiler
-        target: /app/casaos-config
-
       # Mount DATA directory as read-only
       - type: bind
         source: /DATA
@@ -135,12 +130,23 @@ x-casaos:
       exit 1
     fi
     
-    # Step 2: Check if docker.sock is already mounted
-    echo "🔍 Step 2: Checking docker.sock mount status..."
-    if grep -q "/var/run/docker.sock:/var/run/docker.sock" "$COMPOSE_FILE"; then
-      echo "✅ Docker.sock is already mounted in compose file"
+    # Step 2: Check if docker.sock is already mounted (EXCLUDING pre-install-cmd section)
+    echo "🔍 Step 2: Checking docker.sock mount status in volumes section only..."
+    
+    # Extract only the service section (before x-casaos section)
+    SERVICE_SECTION=$(awk '/^[[:space:]]*yunderagithubcompiler:/,/^[[:space:]]*x-casaos:/ {
+      if (/^[[:space:]]*x-casaos:/) exit;
+      print
+    }' "$COMPOSE_FILE")
+    
+    echo "📋 Service section extracted for analysis:"
+    echo "$SERVICE_SECTION"
+    
+    # Check if docker.sock is in the service volumes section
+    if echo "$SERVICE_SECTION" | grep -q "/var/run/docker.sock:/var/run/docker.sock"; then
+      echo "✅ Docker.sock is already mounted in service volumes section"
     else
-      echo "❌ Docker.sock is NOT mounted in compose file"
+      echo "❌ Docker.sock is NOT mounted in service volumes section"
       
       # Step 3: Add docker.sock mount
       echo "🔧 Step 3: Adding docker.sock mount to compose file..."
@@ -149,31 +155,48 @@ x-casaos:
       cp "$COMPOSE_FILE" "$COMPOSE_FILE.backup"
       echo "📋 Backed up compose file to $COMPOSE_FILE.backup"
       
-      # Add docker.sock mount after the last volume entry
-      if grep -q "volumes:" "$COMPOSE_FILE"; then
-        # Find the last volume line and add docker.sock after it
-        sed -i '/volumes:/,/^[[:space:]]*[^[:space:]-]/ {
-          /^[[:space:]]*-/ {
-            $ a\      - /var/run/docker.sock:/var/run/docker.sock
+      # Check if volumes section exists in service
+      if echo "$SERVICE_SECTION" | grep -q "volumes:"; then
+        echo "📁 Found existing volumes section in service"
+        
+        # Add docker.sock mount after the last volume entry in the service
+        # Find the line number of the last volume entry before networks or x-casaos
+        sed -i '/^[[:space:]]*yunderagithubcompiler:/,/^[[:space:]]*networks:/ {
+          /^[[:space:]]*-[[:space:]]*.*:.*/ {
+            a\      - /var/run/docker.sock:/var/run/docker.sock
           }
         }' "$COMPOSE_FILE"
         echo "✅ Added docker.sock mount to existing volumes section"
       else
-        # No volumes section, add one
-        sed -i '/^[[:space:]]*yunderagithubcompiler:/,/^[[:space:]]*[^[:space:]]/ {
-          /^[[:space:]]*[^[:space:]]/ i\    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock
+        echo "📁 No volumes section found in service, adding one"
+        
+        # Add volumes section with docker.sock mount before networks
+        sed -i '/^[[:space:]]*yunderagithubcompiler:/,/^[[:space:]]*networks:/ {
+          /^[[:space:]]*networks:/ i\    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n
         }' "$COMPOSE_FILE"
         echo "✅ Added volumes section with docker.sock mount"
       fi
       
-      # Verify the change
-      if grep -q "/var/run/docker.sock:/var/run/docker.sock" "$COMPOSE_FILE"; then
-        echo "✅ Docker.sock mount successfully added to compose file"
+      # Verify the change by checking service section again
+      UPDATED_SERVICE_SECTION=$(awk '/^[[:space:]]*yunderagithubcompiler:/,/^[[:space:]]*x-casaos:/ {
+        if (/^[[:space:]]*x-casaos:/) exit;
+        print
+      }' "$COMPOSE_FILE")
+      
+      echo "📋 Updated service section:"
+      echo "$UPDATED_SERVICE_SECTION"
+      
+      if echo "$UPDATED_SERVICE_SECTION" | grep -q "/var/run/docker.sock:/var/run/docker.sock"; then
+        echo "✅ Docker.sock mount successfully added to service volumes section"
       else
-        echo "❌ Failed to add docker.sock mount to compose file"
+        echo "❌ Failed to add docker.sock mount to service volumes section"
         exit 1
       fi
     fi
+    
+    echo "🛑 STOPPING HERE FOR TESTING - Docker.sock modification complete"
+    echo "📋 Please check the compose file manually before proceeding"
+    exit 0
     
     # Step 4: Wait for container to be created
     echo "🔍 Step 4: Waiting for container to be created..."
