@@ -194,7 +194,7 @@ x-casaos:
         
         # Now try the actual sed command with debugging
         echo "🔍 DEBUG: Executing main sed command..."
-        sed -i '/^[[:space:]]*yunderagithubcompiler:/,/^[[:space:]]*networks:/ {
+        sed -i '/^[[:space:]]*volumes:/,/^[[:space:]]*networks:/ {
           /^[[:space:]]*read_only:[[:space:]]*true/ {
             a\            - type: bind\n              source: /var/run/docker.sock\n              target: /var/run/docker.sock
           }
