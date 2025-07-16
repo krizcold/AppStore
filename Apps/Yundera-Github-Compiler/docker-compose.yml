@@ -5,7 +5,7 @@ services:
     image: krizcold/yundera-github-compiler:latest
     container_name: yunderagithubcompiler
     restart: unless-stopped
-    user: root
+    #user: root
     expose:
       - "3000"
     entrypoint: ["/bin/sh"]
@@ -166,8 +166,18 @@ x-casaos:
           curl -s "http://localhost:8080/v2/app_management" > /tmp/casaos-all.log 2>&1
           cat /tmp/casaos-all.log
           
-          echo -e "\n5️⃣ Direct Docker check - ALL containers:"
-          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" | head -20
+          echo -e "\n5️⃣ Direct Docker check - ALL containers (HOST context):"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+          
+          echo -e "\n🔍 Checking different Docker contexts:"
+          echo "📍 Current Docker context:"
+          docker context list
+          
+          echo -e "\n🐳 Checking if CasaOS container has its own Docker:"
+          docker exec casaos docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null || echo "CasaOS container doesn't have Docker access"
+          
+          echo -e "\n🔍 Looking for Docker sockets:"
+          find /var -name "docker.sock" 2>/dev/null || echo "No additional Docker sockets found"
           
           echo -e "\n6️⃣ Looking for any yundera-related containers:"
           docker ps --filter "name=yundera" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
