@@ -229,17 +229,14 @@ x-casaos:
       echo "📋 Updated service section:"
       echo "$UPDATED_SERVICE_SECTION"
       
-      if echo "$UPDATED_SERVICE_SECTION" | grep -q "/var/run/docker.sock:/var/run/docker.sock"; then
+      # Check for docker.sock mount in the updated service section
+      if echo "$UPDATED_SERVICE_SECTION" | grep -q "source: /var/run/docker.sock"; then
         echo "✅ Docker.sock mount successfully added to service volumes section"
       else
         echo "❌ Failed to add docker.sock mount to service volumes section"
         exit 1
       fi
     fi
-    
-    echo "🛑 STOPPING HERE FOR TESTING - Docker.sock modification complete"
-    echo "📋 Please check the compose file manually before proceeding"
-    exit 0
     
     # Step 4: Wait for container to be created
     echo "🔍 Step 4: Waiting for container to be created..."
