@@ -2,7 +2,7 @@ name: yunderagithubcompiler
 
 services:
   yunderagithubcompiler:
-    image: krizcold/yundera-github-compiler:latest
+    image: krizcold/yundera-github-compiler:1.5.2
     container_name: yunderagithubcompiler
     restart: unless-stopped
     expose:
@@ -14,13 +14,7 @@ services:
       - |
         npm run setup
     environment:
-      # Repository configuration (add REPO_0, REPO_1, etc. as needed)
-      # REPO_0: "https://github.com/your-org/your-repo.git"
-      # REPO_0_AUTOUPDATE: "true"
-      
       # Application settings
-      UPDATE_INTERVAL: "3600"
-      FORCE_UPDATE_GLOBAL: "true"
       WEBUI_PORT: "3000"
       
       # CasaOS integration
@@ -32,13 +26,18 @@ services:
     volumes:        
       # cloned repos
       - type: bind
-        source: /DATA/AppData/yunderagithubcompiler/repos
+        source: $DATA_ROOT/AppData/yunderagithubcompiler/repos
         target: /app/repos
+
+      # persistent UI data storage
+      - type: bind
+        source: $DATA_ROOT/AppData/yunderagithubcompiler/ui-data
+        target: /app/ui-data
 
       # Mount DATA directory as read-only
       - type: bind
-        source: /DATA
-        target: /DATA
+        source: $DATA_ROOT
+        target: $DATA_ROOT
         read_only: true
 
       - type: bind
