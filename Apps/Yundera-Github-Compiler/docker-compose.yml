@@ -26,18 +26,18 @@ services:
     volumes:        
       # cloned repos
       - type: bind
-        source: ${DATA_ROOT}/AppData/yunderagithubcompiler/repos
+        source: /DATA/AppData/yunderagithubcompiler/repos
         target: /app/repos
 
       # persistent UI data storage
       - type: bind
-        source: ${DATA_ROOT}/AppData/yunderagithubcompiler/ui-data
+        source: /DATA/AppData/yunderagithubcompiler/ui-data
         target: /app/ui-data
 
       # Mount DATA directory as read-only
       - type: bind
-        source: ${DATA_ROOT}
-        target: ${DATA_ROOT}
+        source: /DATA
+        target: /DATA
         read_only: true
 
       - type: bind
