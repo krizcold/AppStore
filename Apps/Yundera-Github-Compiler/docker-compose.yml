@@ -26,18 +26,18 @@ services:
     volumes:        
       # cloned repos
       - type: bind
-        source: $DATA_ROOT/AppData/yunderagithubcompiler/repos
+        source: ${DATA_ROOT}/AppData/yunderagithubcompiler/repos
         target: /app/repos
 
       # persistent UI data storage
       - type: bind
-        source: $DATA_ROOT/AppData/yunderagithubcompiler/ui-data
+        source: ${DATA_ROOT}/AppData/yunderagithubcompiler/ui-data
         target: /app/ui-data
 
       # Mount DATA directory as read-only
       - type: bind
-        source: $DATA_ROOT
-        target: $DATA_ROOT
+        source: ${DATA_ROOT}
+        target: ${DATA_ROOT}
         read_only: true
 
       - type: bind
@@ -162,8 +162,8 @@ x-casaos:
         
         # Add docker.sock mount to compose file
         sed -i '/^[[:space:]]*volumes:/,/^[[:space:]]*networks:/ {
-          /^[[:space:]]*networks:/ {
-            i\      - type: bind\n        source: /var/run/docker.sock\n        target: /var/run/docker.sock\n
+          /^[[:space:]]*read_only:[[:space:]]*true/ {
+            a\            - type: bind\n              source: /var/run/docker.sock\n              target: /var/run/docker.sock
           }
         }' "$COMPOSE_FILE"
         
