@@ -61,6 +61,9 @@ services:
         - container: /app/repos
           description:
             en_us: "Git repos are cloned here."
+        - container: /app/ui-data
+          description:
+            en_us: "Persistent UI data storage."
 
 # Define the network as external, since it's created by the main NSL stack
 networks:
@@ -159,8 +162,8 @@ x-casaos:
         
         # Add docker.sock mount to compose file
         sed -i '/^[[:space:]]*volumes:/,/^[[:space:]]*networks:/ {
-          /^[[:space:]]*read_only:[[:space:]]*true/ {
-            a\            - type: bind\n              source: /var/run/docker.sock\n              target: /var/run/docker.sock
+          /^[[:space:]]*networks:/ {
+            i\      - type: bind\n        source: /var/run/docker.sock\n        target: /var/run/docker.sock\n
           }
         }' "$COMPOSE_FILE"
         
