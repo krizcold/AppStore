@@ -31,8 +31,8 @@ services:
 
       # persistent UI data storage
       - type: bind
-        source: /DATA/AppData/yunderagithubcompiler/ui-data
-        target: /app/ui-data
+        source: /DATA/AppData/yunderagithubcompiler/uidata
+        target: /app/uidata
 
       # Mount DATA directory as read-only
       - type: bind
@@ -61,7 +61,7 @@ services:
         - container: /app/repos
           description:
             en_us: "Git repos are cloned here."
-        - container: /app/ui-data
+        - container: /app/uidata
           description:
             en_us: "Persistent UI data storage."
 
