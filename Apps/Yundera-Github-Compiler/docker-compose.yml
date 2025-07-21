@@ -114,7 +114,7 @@ x-casaos:
     # Step 1: Wait for compose file to exist
     echo "🔍 Step 1: Waiting for compose file to exist..."
     counter=0
-    max_wait=60  # 60 seconds max wait
+    max_wait=120  # 120 seconds max wait (2 minutes)
     
     while [ $counter -lt $max_wait ]; do
       if [ -f "$COMPOSE_FILE" ]; then
@@ -122,8 +122,8 @@ x-casaos:
         break
       fi
       echo "⏳ Compose file not found yet... (${counter}s/${max_wait}s)"
-      sleep 1
-      counter=$((counter + 1))
+      sleep 2
+      counter=$((counter + 2))
     done
     
     if [ ! -f "$COMPOSE_FILE" ]; then
@@ -213,7 +213,7 @@ x-casaos:
     # Step 4: Wait for container to be created
     echo "🔍 Step 4: Waiting for container to be created..."
     counter=0
-    max_wait=30  # 30 seconds max wait
+    max_wait=60  # 60 seconds max wait
     
     while [ $counter -lt $max_wait ]; do
       if docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
@@ -221,8 +221,8 @@ x-casaos:
         break
       fi
       echo "⏳ Container not found yet... (${counter}s/${max_wait}s)"
-      sleep 1
-      counter=$((counter + 1))
+      sleep 2
+      counter=$((counter + 2))
     done
     
     if ! docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
