@@ -93,66 +93,40 @@ x-casaos:
     #!/bin/bash
     set -e
     
-    echo "🚀 Synchronous pre-install fixer started."
+    echo "🚀 TESTING: Synchronous pre-install for docker.sock injection."
 
-    # --- Step 1: Generate secrets and detect GID ---
-    AUTH_HASH=$(openssl rand -hex 32)
-    if [ -z "$AUTH_HASH" ]; then
-      echo "❌ Failed to generate AUTH_HASH, aborting"
-      exit 1
-    fi
-    echo "🔐 Generated AUTH_HASH: ${AUTH_HASH:0:16}..."
-
-    if [ -S /var/run/docker.sock ]; then
-      DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
-    else
-      DOCKER_GID=999
-    fi
-    echo "✅ Docker GID is: $DOCKER_GID"
-
-    # --- Step 2: Define path and wait for compose file ---
+    # --- Step 1: Define path and wait for the installer to create the compose file ---
     COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
-    echo "⏳ Waiting for compose file at $COMPOSE_FILE..."
+    echo "⏳ Waiting for compose file to be created at: $COMPOSE_FILE..."
     
     counter=0
+    # Wait up to 1 minute for the file to appear
     while [ ! -f "$COMPOSE_FILE" ] && [ $counter -lt 60 ]; do
       sleep 2
       counter=$((counter + 2))
     done
 
     if [ ! -f "$COMPOSE_FILE" ]; then
-      echo "❌ Compose file was not created. Aborting."
+      echo "❌ ERROR: Compose file was not created in time. Aborting."
       exit 1
     fi
     echo "✅ Compose file found."
 
-    # --- Step 3: Modify the compose file with CORRECT sed syntax ---
-    echo "🔧 Modifying the compose file..."
+    # --- Step 2: Modify the compose file to add the docker.sock mount ---
+    echo "🔧 Modifying compose file to inject docker.sock..."
 
-    # CORRECTED: Add docker.sock mount using proper multi-line append syntax for sed.
-    # This finds the line with 'read_only: true' and appends the new volume block right after it.
+    # This sed command finds the unique line 'read_only: true' and APPENDS (`a \`)
+    # the correctly indented multi-line block for the docker.sock volume right after it.
+    # The indentation (6 spaces for `-`, 8 for keys) is critical for valid YAML.
     sed -i '/^[[:space:]]*read_only:[[:space:]]*true/a \
-          - type: bind\
-            source: /var/run/docker.sock\
-            target: /var/run/docker.sock' "$COMPOSE_FILE"
+        - type: bind\
+          source: /var/run/docker.sock\
+          target: /var/run/docker.sock' "$COMPOSE_FILE"
 
-    # CORRECTED: Add environment variables using proper multi-line append syntax.
-    sed -i "/WEBUI_PORT:/a \
-          DOCKER_GID: \"$DOCKER_GID\"\
-          AUTH_HASH: \"$AUTH_HASH\"" "$COMPOSE_FILE"
-    
-    # This command was likely correct, but we ensure consistency.
-    # It replaces the placeholder index with the real hash value.
-    sed -i "s|index: /|index: /?hash=$AUTH_HASH|" "$COMPOSE_FILE"
-
-    # --- Step 4: Verify and Exit ---
-    if grep -q "source: /var/run/docker.sock" "$COMPOSE_FILE" && grep -q "AUTH_HASH: \"$AUTH_HASH\"" "$COMPOSE_FILE"; then
-      echo "✅ Successfully modified compose file. Handing control to installer."
+    # --- Step 3: Verify the change and exit ---
+    if grep -q "source: /var/run/docker.sock" "$COMPOSE_FILE"; then
+      echo "✅ SUCCESS: docker.sock was successfully injected. Handing control to installer."
     else
-      echo "❌ Failed to modify the compose file. Please check the corrected sed commands."
-      # echo "--- Current Compose File Content ---"
-      # cat "$COMPOSE_FILE"
-      # echo "------------------------------------"
+      echo "❌ FAILED: The script ran, but docker.sock was not found in the final compose file."
       exit 1
     fi
-    
