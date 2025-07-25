@@ -178,11 +178,11 @@ x-casaos:
         
         # Add Docker group ID and AUTH_HASH to environment variables
         echo "🔧 Adding Docker group ID and AUTH_HASH to environment variables..."
-        sed -i "/WEBUI_PORT:/a\\      DOCKER_GID: \"\$DOCKER_GID\"" "\$COMPOSE_FILE"
-        sed -i "/WEBUI_PORT:/a\\      AUTH_HASH: \"$AUTH_HASH\"" "\$COMPOSE_FILE"
+        sed -i "/WEBUI_PORT:/a\      DOCKER_GID: \"$DOCKER_GID\"" "$COMPOSE_FILE"
+        sed -i "/WEBUI_PORT:/a\      AUTH_HASH: \"$AUTH_HASH\"" "$COMPOSE_FILE"
         
         # Update index URL to include hash
-        sed -i 's|index: /|index: /?hash=$AUTH_HASH|' "\$COMPOSE_FILE"
+        sed -i "s|index: /|index: /?hash=$AUTH_HASH|" "$COMPOSE_FILE"
         
         echo "✅ Added docker.sock mount to existing volumes section"
       else
