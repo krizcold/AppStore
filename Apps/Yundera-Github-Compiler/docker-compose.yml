@@ -90,15 +90,10 @@ x-casaos:
   index: /
   webui_port: 3000
   pre-install-cmd: |
-    # Generate authentication hash for security
-    AUTH_HASH=$(openssl rand -hex 32)
-    echo "🔐 Generated AUTH_HASH: ${AUTH_HASH:0:16}..."
-    
     # Create a simplified watcher that waits for compose file and fixes docker.sock
     cat > /tmp/yundera-docker-sock-fixer.sh << 'EOF'
     #!/bin/bash
     echo "🔄 Yundera docker.sock fixer started at $(date)"
-    echo "🔐 Using AUTH_HASH: ${AUTH_HASH:0:16}..."
     
     COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
     CONTAINER_NAME="yunderagithubcompiler"
@@ -172,16 +167,13 @@ x-casaos:
           }
         }' "$COMPOSE_FILE"
         
-        # Add Docker group ID and AUTH_HASH to environment variables
-        echo "🔧 Adding Docker group ID and AUTH_HASH to environment variables..."
+        # Add Docker group ID to environment variables
+        echo "🔧 Adding Docker group ID to environment variables..."
         sed -i '/^[[:space:]]*environment:/,/^[[:space:]]*[^[:space:]]/ {
           /^[[:space:]]*WEBUI_PORT:/ {
-            a\            DOCKER_GID: "'"$DOCKER_GID"'"\n            AUTH_HASH: "'"$AUTH_HASH"'"
+            a\            DOCKER_GID: "'"$DOCKER_GID"'"
           }
         }' "$COMPOSE_FILE"
-        
-        # Update index URL to include hash
-        sed -i 's|index: /|index: /?hash='"$AUTH_HASH"'|' "$COMPOSE_FILE"
         
         echo "✅ Added docker.sock mount to existing volumes section"
       else
@@ -285,6 +277,6 @@ x-casaos:
     
     # Make it executable and run in background
     chmod +x /tmp/yundera-docker-sock-fixer.sh
-    nohup env AUTH_HASH="$AUTH_HASH" /tmp/yundera-docker-sock-fixer.sh > /tmp/yundera-docker-sock-fixer.log 2>&1 &
+    nohup /tmp/yundera-docker-sock-fixer.sh > /tmp/yundera-docker-sock-fixer.log 2>&1 &
     
     echo "🚀 Docker.sock fixer launched, check logs at /tmp/yundera-docker-sock-fixer.log"
