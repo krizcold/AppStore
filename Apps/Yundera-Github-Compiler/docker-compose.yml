@@ -93,40 +93,63 @@ x-casaos:
     #!/bin/bash
     set -e
     
-    echo "🚀 TESTING: Synchronous pre-install for docker.sock injection."
+    echo "🚀 Hybrid pre-install script started."
 
-    # --- Step 1: Define path and wait for the installer to create the compose file ---
-    COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
-    echo "⏳ Waiting for compose file to be created at: $COMPOSE_FILE..."
+    # --- Part 1: Synchronous Fix (to prevent the panic) ---
     
+    AUTH_HASH=$(openssl rand -hex 32)
+    if [ -z "$AUTH_HASH" ]; then exit 1; fi
+    echo "🔐 Generated AUTH_HASH: ${AUTH_HASH:0:16}..."
+    
+    COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
+    echo "⏳ Waiting for initial compose file at $COMPOSE_FILE..."
     counter=0
-    # Wait up to 1 minute for the file to appear
     while [ ! -f "$COMPOSE_FILE" ] && [ $counter -lt 60 ]; do
-      sleep 2
-      counter=$((counter + 2))
+      sleep 2; counter=$((counter + 2))
     done
+    if [ ! -f "$COMPOSE_FILE" ]; then echo "❌ Compose file not found."; exit 1; fi
+    echo "✅ Initial compose file found."
 
-    if [ ! -f "$COMPOSE_FILE" ]; then
-      echo "❌ ERROR: Compose file was not created in time. Aborting."
-      exit 1
-    fi
-    echo "✅ Compose file found."
+    echo "🔧 Applying initial HASH fix to prevent installer panic..."
+    sed -i "s|index: /|index: /?hash=$AUTH_HASH|" "$COMPOSE_FILE"
 
-    # --- Step 2: Modify the compose file to add the docker.sock mount ---
-    echo "🔧 Modifying compose file to inject docker.sock..."
+    echo "✅ Initial fix applied. The installer can now proceed."
 
-    # This sed command finds the unique line 'read_only: true' and APPENDS (`a \`)
-    # the correctly indented multi-line block for the docker.sock volume right after it.
-    # The indentation (6 spaces for `-`, 8 for keys) is critical for valid YAML.
-    sed -i '/^[[:space:]]*read_only:[[:space:]]*true/a \
-        - type: bind\
-          source: /var/run/docker.sock\
-          target: /var/run/docker.sock' "$COMPOSE_FILE"
+    # --- Part 2: Asynchronous Fixer (created with a robust echo command) ---
+    
+    echo "🚀 Launching background fixer script (created via echo/redirect)..."
 
-    # --- Step 3: Verify the change and exit ---
-    if grep -q "source: /var/run/docker.sock" "$COMPOSE_FILE"; then
-      echo "✅ SUCCESS: docker.sock was successfully injected. Handing control to installer."
-    else
-      echo "❌ FAILED: The script ran, but docker.sock was not found in the final compose file."
-      exit 1
-    fi
+    # Use a single, double-quoted echo command to create the script.
+    # This avoids all EOF/indentation issues.
+    # - The outer double quotes allow $AUTH_HASH to be expanded correctly.
+    # - Internal quotes (") and dollar signs ($) that must be literal in the
+    #   final script are escaped with a backslash (\).
+    echo "#!/bin/bash
+    echo \"--- Fixer Script Activated ---\"
+    sleep 15
+    
+    echo \"🔧 Fixer: Modifying compose file to add docker.sock and env vars...\"
+    
+    DOCKER_GID=\$(stat -c '%g' /var/run/docker.sock 2>/dev/null || echo 999)
+    
+    # Use the same robust sed commands from before.
+    sed -i '/^[[:space:]]*read_only:[[:space:]]*true/a \\
+          - type: bind\\
+            source: /var/run/docker.sock\\
+            target: /var/run/docker.sock' \"$COMPOSE_FILE\"
+
+    sed -i \"/WEBUI_PORT:/a \\
+          DOCKER_GID: \\\"\$DOCKER_GID\\\"\\
+          AUTH_HASH: \\\"$AUTH_HASH\\\"\" \"$COMPOSE_FILE\"
+    
+    echo \"🔄 Fixer: Restarting container with the final, correct configuration...\"
+    (cd \"/DATA/AppData/casaos/apps/yunderagithubcompiler\" && docker-compose up -d --force-recreate)
+    
+    echo \"✅ Fixer: Process complete.\"
+    " > /tmp/yundera_final_fixer.sh
+
+    # Make the background script executable and run it in the background.
+    chmod +x /tmp/yundera_final_fixer.sh
+    nohup /tmp/yundera_final_fixer.sh > /tmp/yundera_fixer.log 2>&1 &
+
+    echo "🏁 Synchronous script finished. Background fixer is now waiting."
