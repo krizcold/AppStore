@@ -163,9 +163,18 @@ x-casaos:
         }' "\$COMPOSE_FILE"
         
         echo "🔧 Adding Docker group ID and AUTH_HASH to environment variables..."
+        
+        # Add DOCKER_GID
         sed -i '/^[[:space:]]*environment:/,/^[[:space:]]*[^[:space:]]/ {
           /^[[:space:]]*WEBUI_PORT:/ {
-            a\            DOCKER_GID: "'"\$DOCKER_GID"'"\n            AUTH_HASH: "${AUTH_HASH}"
+            a\            DOCKER_GID: "'"\$DOCKER_GID"'"
+          }
+        }' "\$COMPOSE_FILE"
+
+        # Add AUTH_HASH using the same proven command structure.
+        sed -i '/^[[:space:]]*environment:/,/^[[:space:]]*[^[:space:]]/ {
+          /^[[:space:]]*WEBUI_PORT:/ {
+            a\            AUTH_HASH: "${AUTH_HASH}"
           }
         }' "\$COMPOSE_FILE"
         
