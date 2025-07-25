@@ -92,13 +92,13 @@ x-casaos:
   pre-install-cmd: |
     # Generate authentication hash for security
     AUTH_HASH=$(openssl rand -hex 32)
-    echo "🔐 Generated AUTH_HASH for Yundera Compiler security: ${AUTH_HASH:0:16}..."
+    echo "🔐 Generated AUTH_HASH: ${AUTH_HASH:0:16}..."
     
     # Create a simplified watcher that waits for compose file and fixes docker.sock
-    cat > /tmp/yundera-docker-sock-fixer.sh << EOF
+    cat > /tmp/yundera-docker-sock-fixer.sh << 'EOF'
     #!/bin/bash
-    echo "🔄 Yundera docker.sock fixer started at \$(date)"
-    AUTH_HASH="$AUTH_HASH"
+    echo "🔄 Yundera docker.sock fixer started at $(date)"
+    echo "🔐 Using AUTH_HASH: ${AUTH_HASH:0:16}..."
     
     COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
     CONTAINER_NAME="yunderagithubcompiler"
@@ -151,22 +151,6 @@ x-casaos:
     # Check if docker.sock is in the service volumes section
     if echo "$SERVICE_SECTION" | grep -q "/var/run/docker.sock:/var/run/docker.sock"; then
       echo "✅ Docker.sock is already mounted in service volumes section"
-      
-      # Still need to add AUTH_HASH and update index URL
-      echo "🔧 Adding AUTH_HASH to environment variables..."
-      sed -i '/^[[:space:]]*environment:/,/^[[:space:]]*[^[:space:]]/ {
-        /^[[:space:]]*WEBUI_PORT:/ {
-          a\            AUTH_HASH: "'"$AUTH_HASH"'"
-        }
-      }' "$COMPOSE_FILE"
-      
-      # Update x-casaos index URL to include hash
-      echo "🔧 Updating x-casaos index URL to include authentication hash..."
-      sed -i '/^[[:space:]]*index:[[:space:]]*\// {
-        s|index: /|index: /?hash='"$AUTH_HASH"'|
-      }' "$COMPOSE_FILE"
-      
-      echo "✅ Added authentication to existing setup"
     else
       echo "❌ Docker.sock is NOT mounted in service volumes section"
       
@@ -196,13 +180,10 @@ x-casaos:
           }
         }' "$COMPOSE_FILE"
         
-        # Update x-casaos index URL to include hash
-        echo "🔧 Updating x-casaos index URL to include authentication hash..."
-        sed -i '/^[[:space:]]*index:[[:space:]]*\// {
-          s|index: /|index: /?hash='"$AUTH_HASH"'|
-        }' "$COMPOSE_FILE"
+        # Update index URL to include hash
+        sed -i 's|index: /|index: /?hash='"$AUTH_HASH"'|' "$COMPOSE_FILE"
         
-        echo "✅ Added docker.sock mount and authentication to existing volumes section"
+        echo "✅ Added docker.sock mount to existing volumes section"
       else
         echo "📁 No volumes section found in service, adding one"
         
@@ -210,22 +191,7 @@ x-casaos:
         sed -i '/^[[:space:]]*yunderagithubcompiler:/,/^[[:space:]]*networks:/ {
           /^[[:space:]]*networks:/ i\    volumes:\n        - type: bind\n          source: /var/run/docker.sock\n          target: /var/run/docker.sock\n
         }' "$COMPOSE_FILE"
-        
-        # Add AUTH_HASH to environment variables (for case with no volumes section)
-        echo "🔧 Adding AUTH_HASH to environment variables..."
-        sed -i '/^[[:space:]]*environment:/,/^[[:space:]]*[^[:space:]]/ {
-          /^[[:space:]]*WEBUI_PORT:/ {
-            a\            AUTH_HASH: "'"$AUTH_HASH"'"
-          }
-        }' "$COMPOSE_FILE"
-        
-        # Update x-casaos index URL to include hash
-        echo "🔧 Updating x-casaos index URL to include authentication hash..."
-        sed -i '/^[[:space:]]*index:[[:space:]]*\// {
-          s|index: /|index: /?hash='"$AUTH_HASH"'|
-        }' "$COMPOSE_FILE"
-        
-        echo "✅ Added volumes section with docker.sock mount and authentication"
+        echo "✅ Added volumes section with docker.sock mount"
       fi
       
       # Verify the change by checking service section again
@@ -234,30 +200,17 @@ x-casaos:
         print
       }' "$COMPOSE_FILE")
       
-      echo "📋 Docker.sock mount, Docker group ID, and AUTH_HASH added successfully"
+      echo "📋 Docker.sock mount and Docker group ID added successfully"
       
       # Check for docker.sock mount in the updated service section
       if echo "$UPDATED_SERVICE_SECTION" | grep -q "source: /var/run/docker.sock"; then
         echo "✅ Docker.sock mount successfully added to service volumes section"
         
-        # Also check if Docker group ID and AUTH_HASH were added
+        # Also check if Docker group ID was added
         if grep -q "DOCKER_GID:" "$COMPOSE_FILE"; then
           echo "✅ Docker group ID successfully added to environment variables"
         else
           echo "⚠️  Docker group ID might not have been added to environment"
-        fi
-        
-        if grep -q "AUTH_HASH:" "$COMPOSE_FILE"; then
-          echo "✅ AUTH_HASH successfully added to environment variables"
-        else
-          echo "⚠️  AUTH_HASH might not have been added to environment"
-        fi
-        
-        # Check if index URL was updated
-        if grep -q "index: /?hash=" "$COMPOSE_FILE"; then
-          echo "✅ Index URL successfully updated with authentication hash"
-        else
-          echo "⚠️  Index URL might not have been updated with hash"
         fi
       else
         echo "❌ Failed to add docker.sock mount to service volumes section"
@@ -332,6 +285,6 @@ x-casaos:
     
     # Make it executable and run in background
     chmod +x /tmp/yundera-docker-sock-fixer.sh
-    nohup /tmp/yundera-docker-sock-fixer.sh > /tmp/yundera-docker-sock-fixer.log 2>&1 &
+    nohup env AUTH_HASH="$AUTH_HASH" /tmp/yundera-docker-sock-fixer.sh > /tmp/yundera-docker-sock-fixer.log 2>&1 &
     
     echo "🚀 Docker.sock fixer launched, check logs at /tmp/yundera-docker-sock-fixer.log"
