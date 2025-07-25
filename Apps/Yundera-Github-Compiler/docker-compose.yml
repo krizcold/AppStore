@@ -93,63 +93,62 @@ x-casaos:
     #!/bin/bash
     set -e
     
-    echo "🚀 Hybrid pre-install script started."
+    echo "🚀 Pre-install script started. Launching background fixer."
 
-    # --- Part 1: Synchronous Fix (to prevent the panic) ---
-    
+    # Generate the hash that the background script will use later.
     AUTH_HASH=$(openssl rand -hex 32)
     if [ -z "$AUTH_HASH" ]; then exit 1; fi
-    echo "🔐 Generated AUTH_HASH: ${AUTH_HASH:0:16}..."
-    
+    echo "🔐 Generated AUTH_HASH for background process: ${AUTH_HASH:0:16}..."
+
+    # The path to the compose file that will eventually be created.
     COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
-    echo "⏳ Waiting for initial compose file at $COMPOSE_FILE..."
-    counter=0
-    while [ ! -f "$COMPOSE_FILE" ] && [ $counter -lt 60 ]; do
-      sleep 2; counter=$((counter + 2))
-    done
-    if [ ! -f "$COMPOSE_FILE" ]; then echo "❌ Compose file not found."; exit 1; fi
-    echo "✅ Initial compose file found."
 
-    echo "🔧 Applying initial HASH fix to prevent installer panic..."
-    sed -i "s|index: /|index: /?hash=$AUTH_HASH|" "$COMPOSE_FILE"
-
-    echo "✅ Initial fix applied. The installer can now proceed."
-
-    # --- Part 2: Asynchronous Fixer (created with a robust echo command) ---
-    
-    echo "🚀 Launching background fixer script (created via echo/redirect)..."
-
-    # Use a single, double-quoted echo command to create the script.
-    # This avoids all EOF/indentation issues.
-    # - The outer double quotes allow $AUTH_HASH to be expanded correctly.
-    # - Internal quotes (") and dollar signs ($) that must be literal in the
-    #   final script are escaped with a backslash (\).
+    # Use `echo` to create the robust background fixer script.
+    # This script contains ALL the logic that needs to happen AFTER the initial install.
     echo "#!/bin/bash
-    echo \"--- Fixer Script Activated ---\"
+    echo \"--- [Background Fixer] Activated. Waiting for initial install to complete...\"
+    # Give the main installer time to create the container, even if it's flawed.
     sleep 15
     
-    echo \"🔧 Fixer: Modifying compose file to add docker.sock and env vars...\"
+    echo \"--- [Background Fixer] Waiting for compose file to appear at $COMPOSE_FILE...\"
+    counter=0
+    while [ ! -f \"$COMPOSE_FILE\" ] && [ \$counter -lt 60 ]; do
+      sleep 2; counter=\$((counter + 2))
+    done
     
+    if [ ! -f \"$COMPOSE_FILE\" ]; then
+      echo \"--- [Background Fixer] ERROR: Compose file never appeared. Exiting.\"
+      exit 1
+    fi
+    echo \"--- [Background Fixer] ✅ Compose file found. Applying final configuration...\"
+
+    # Get Docker GID
     DOCKER_GID=\$(stat -c '%g' /var/run/docker.sock 2>/dev/null || echo 999)
-    
-    # Use the same robust sed commands from before.
+
+    # 1. Add docker.sock mount
     sed -i '/^[[:space:]]*read_only:[[:space:]]*true/a \\
           - type: bind\\
             source: /var/run/docker.sock\\
             target: /var/run/docker.sock' \"$COMPOSE_FILE\"
 
+    # 2. Add environment variables
     sed -i \"/WEBUI_PORT:/a \\
           DOCKER_GID: \\\"\$DOCKER_GID\\\"\\
           AUTH_HASH: \\\"$AUTH_HASH\\\"\" \"$COMPOSE_FILE\"
     
-    echo \"🔄 Fixer: Restarting container with the final, correct configuration...\"
+    # 3. Modify the index line to include the hash
+    sed -i \"s|index: /|index: /?hash=$AUTH_HASH|\" \"$COMPOSE_FILE\"
+
+    echo \"--- [Background Fixer] ✅ Final configuration applied. Restarting container...\"
+    
+    # Use docker compose to force-recreate the container with the correct settings.
     (cd \"/DATA/AppData/casaos/apps/yunderagithubcompiler\" && docker-compose up -d --force-recreate)
     
-    echo \"✅ Fixer: Process complete.\"
+    echo \"--- [Background Fixer] ✅ Process complete. App should now be running correctly.\"
     " > /tmp/yundera_final_fixer.sh
 
-    # Make the background script executable and run it in the background.
+    # Make the background script executable and run it.
     chmod +x /tmp/yundera_final_fixer.sh
     nohup /tmp/yundera_final_fixer.sh > /tmp/yundera_fixer.log 2>&1 &
 
-    echo "🏁 Synchronous script finished. Background fixer is now waiting."
+    echo "🏁 Pre-install finished. Handing control to main installer. Check logs at /tmp/yundera_fixer.log"
