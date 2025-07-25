@@ -93,62 +93,60 @@ x-casaos:
     #!/bin/bash
     set -e
     
-    echo "🚀 Pre-install script started. Launching background fixer."
+    echo "🚀 Pre-install: Arming the background fixer script via template method."
 
-    # Generate the hash that the background script will use later.
+    # 1. Generate the dynamic values needed for the final script.
     AUTH_HASH=$(openssl rand -hex 32)
     if [ -z "$AUTH_HASH" ]; then exit 1; fi
-    echo "🔐 Generated AUTH_HASH for background process: ${AUTH_HASH:0:16}..."
-
-    # The path to the compose file that will eventually be created.
-    COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
-
-    # Use `echo` to create the robust background fixer script.
-    # This script contains ALL the logic that needs to happen AFTER the initial install.
-    echo "#!/bin/bash
-    echo \"--- [Background Fixer] Activated. Waiting for initial install to complete...\"
-    # Give the main installer time to create the container, even if it's flawed.
-    sleep 15
+    echo "🔐 Generated AUTH_HASH: ${AUTH_HASH:0:16}..."
     
-    echo \"--- [Background Fixer] Waiting for compose file to appear at $COMPOSE_FILE...\"
-    counter=0
-    while [ ! -f \"$COMPOSE_FILE\" ] && [ \$counter -lt 60 ]; do
-      sleep 2; counter=\$((counter + 2))
-    done
+    COMPOSE_FILE_PATH="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
+    TEMPLATE_FILE="/tmp/fixer_template.sh"
+    FINAL_FIXER_SCRIPT="/tmp/yundera_final_fixer.sh"
+
+    # 2. Create the clean template file line-by-line. This is completely safe.
+    #    It uses placeholders like __AUTH_HASH__ to avoid variable expansion here.
+    echo '#!/bin/bash' > "$TEMPLATE_FILE"
+    echo "echo '--- [Fixer] Activated. Waiting 15s for initial install...'" >> "$TEMPLATE_FILE"
+    echo "sleep 15" >> "$TEMPLATE_FILE"
     
-    if [ ! -f \"$COMPOSE_FILE\" ]; then
-      echo \"--- [Background Fixer] ERROR: Compose file never appeared. Exiting.\"
-      exit 1
-    fi
-    echo \"--- [Background Fixer] ✅ Compose file found. Applying final configuration...\"
+    echo "echo '--- [Fixer] Looking for compose file...'" >> "$TEMPLATE_FILE"
+    echo "if [ ! -f \"__COMPOSE_FILE_PATH__\" ]; then" >> "$TEMPLATE_FILE"
+    echo "  echo '--- [Fixer] ERROR: Compose file not found. Exiting.'" >> "$TEMPLATE_FILE"
+    echo "  exit 1" >> "$TEMPLATE_FILE"
+    echo "fi" >> "$TEMPLATE_FILE"
+    echo "echo '--- [Fixer] ✅ Compose file found. Applying all modifications...'" >> "$TEMPLATE_FILE"
+    
+    echo "DOCKER_GID=\$(stat -c '%g' /var/run/docker.sock 2>/dev/null || echo 999)" >> "$TEMPLATE_FILE"
 
-    # Get Docker GID
-    DOCKER_GID=\$(stat -c '%g' /var/run/docker.sock 2>/dev/null || echo 999)
-
-    # 1. Add docker.sock mount
-    sed -i '/^[[:space:]]*read_only:[[:space:]]*true/a \\
+    echo "# 1. Add docker.sock mount" >> "$TEMPLATE_FILE"
+    echo "sed -i '/^[[:space:]]*read_only:[[:space:]]*true/a \\
           - type: bind\\
             source: /var/run/docker.sock\\
-            target: /var/run/docker.sock' \"$COMPOSE_FILE\"
+            target: /var/run/docker.sock' \"__COMPOSE_FILE_PATH__\"" >> "$TEMPLATE_FILE"
 
-    # 2. Add environment variables
-    sed -i \"/WEBUI_PORT:/a \\
+    echo "# 2. Add environment variables" >> "$TEMPLATE_FILE"
+    echo "sed -i \"/WEBUI_PORT:/a \\
           DOCKER_GID: \\\"\$DOCKER_GID\\\"\\
-          AUTH_HASH: \\\"$AUTH_HASH\\\"\" \"$COMPOSE_FILE\"
-    
-    # 3. Modify the index line to include the hash
-    sed -i \"s|index: /|index: /?hash=$AUTH_HASH|\" \"$COMPOSE_FILE\"
+          AUTH_HASH: \\\"__AUTH_HASH__\\\"\" \"__COMPOSE_FILE_PATH__\"" >> "$TEMPLATE_FILE"
 
-    echo \"--- [Background Fixer] ✅ Final configuration applied. Restarting container...\"
+    echo "# 3. Modify the index line" >> "$TEMPLATE_FILE"
+    echo "sed -i \"s|index: /|index: /?hash=__AUTH_HASH__|\" \"__COMPOSE_FILE_PATH__\"" >> "$TEMPLATE_FILE"
     
-    # Use docker compose to force-recreate the container with the correct settings.
-    (cd \"/DATA/AppData/casaos/apps/yunderagithubcompiler\" && docker-compose up -d --force-recreate)
-    
-    echo \"--- [Background Fixer] ✅ Process complete. App should now be running correctly.\"
-    " > /tmp/yundera_final_fixer.sh
+    echo "echo '--- [Fixer] ✅ All changes applied. Restarting container...'" >> "$TEMPLATE_FILE"
+    echo "(cd \"/DATA/AppData/casaos/apps/yunderagithubcompiler\" && docker-compose up -d --force-recreate)" >> "$TEMPLATE_FILE"
+    echo "echo '--- [Fixer] ✅ Process complete.'" >> "$TEMPLATE_FILE"
 
-    # Make the background script executable and run it.
-    chmod +x /tmp/yundera_final_fixer.sh
-    nohup /tmp/yundera_final_fixer.sh > /tmp/yundera_fixer.log 2>&1 &
+    # 3. Create the final script by populating the template with our real values.
+    echo "🔧 Populating template to create final fixer script..."
+    cat "$TEMPLATE_FILE" \
+      | sed "s|__COMPOSE_FILE_PATH__|${COMPOSE_FILE_PATH}|g" \
+      | sed "s|__AUTH_HASH__|${AUTH_HASH}|g" \
+      > "$FINAL_FIXER_SCRIPT"
 
-    echo "🏁 Pre-install finished. Handing control to main installer. Check logs at /tmp/yundera_fixer.log"
+    # 4. Clean up the template and launch the real fixer script in the background.
+    rm "$TEMPLATE_FILE"
+    chmod +x "$FINAL_FIXER_SCRIPT"
+    nohup "$FINAL_FIXER_SCRIPT" > /tmp/yundera_fixer.log 2>&1 &
+
+    echo "🏁 Pre-install finished. Background fixer is armed. See logs at /tmp/yundera_fixer.log"
