@@ -103,61 +103,56 @@ x-casaos:
     fi
     echo "🔐 Generated AUTH_HASH: ${AUTH_HASH:0:16}..."
 
-    echo "🔍 Detecting Docker group ID..."
     if [ -S /var/run/docker.sock ]; then
       DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
-      echo "✅ Docker group ID detected: $DOCKER_GID"
     else
-      echo "❌ Docker socket not found on host, using fallback GID"
       DOCKER_GID=999
     fi
+    echo "✅ Docker GID is: $DOCKER_GID"
 
-    # --- Step 2: Define paths and wait for the installer to create the compose file ---
+    # --- Step 2: Define path and wait for compose file ---
     COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
-    echo "⏳ Waiting for the installer to create the compose file at $COMPOSE_FILE..."
+    echo "⏳ Waiting for compose file at $COMPOSE_FILE..."
     
     counter=0
-    max_wait=120 # 2 minutes
-
-    while [ $counter -lt $max_wait ]; do
-      if [ -f "$COMPOSE_FILE" ]; then
-        echo "✅ Compose file found after $counter seconds."
-        break
-      fi
+    while [ ! -f "$COMPOSE_FILE" ] && [ $counter -lt 60 ]; do
       sleep 2
       counter=$((counter + 2))
     done
 
     if [ ! -f "$COMPOSE_FILE" ]; then
-      echo "❌ Compose file was not created after ${max_wait}s. Aborting."
+      echo "❌ Compose file was not created. Aborting."
       exit 1
     fi
+    echo "✅ Compose file found."
 
-    # --- Step 3: Modify the compose file IN-PLACE before the installer uses it ---
-    echo "🔧 Modifying the compose file to add docker.sock and secrets..."
+    # --- Step 3: Modify the compose file with CORRECT sed syntax ---
+    echo "🔧 Modifying the compose file..."
 
-    # Backup original just in case
-    cp "$COMPOSE_FILE" "$COMPOSE_FILE.backup"
+    # CORRECTED: Add docker.sock mount using proper multi-line append syntax for sed.
+    # This finds the line with 'read_only: true' and appends the new volume block right after it.
+    sed -i '/^[[:space:]]*read_only:[[:space:]]*true/a \
+          - type: bind\
+            source: /var/run/docker.sock\
+            target: /var/run/docker.sock' "$COMPOSE_FILE"
 
-    # Add the docker.sock mount. This assumes a 'read_only: true' line exists for another volume.
-    # This is more robust than assuming a specific line number.
-    sed -i '/^[[:space:]]*read_only:[[:space:]]*true/a\
-          - type: bind\n          source: /var/run/docker.sock\n          target: /var/run/docker.sock' "$COMPOSE_FILE"
-
-    # Add Docker group ID and AUTH_HASH as environment variables
-    sed -i "/WEBUI_PORT:/a\      DOCKER_GID: \"$DOCKER_GID\"\n      AUTH_HASH: \"$AUTH_HASH\"" "$COMPOSE_FILE"
+    # CORRECTED: Add environment variables using proper multi-line append syntax.
+    sed -i "/WEBUI_PORT:/a \
+          DOCKER_GID: \"$DOCKER_GID\"\
+          AUTH_HASH: \"$AUTH_HASH\"" "$COMPOSE_FILE"
     
-    # IMPORTANT: Find the 'index:' line and replace it to include the *literal hash value*.
-    # This avoids the Docker Compose variable substitution problem entirely.
+    # This command was likely correct, but we ensure consistency.
+    # It replaces the placeholder index with the real hash value.
     sed -i "s|index: /|index: /?hash=$AUTH_HASH|" "$COMPOSE_FILE"
 
     # --- Step 4: Verify and Exit ---
     if grep -q "source: /var/run/docker.sock" "$COMPOSE_FILE" && grep -q "AUTH_HASH: \"$AUTH_HASH\"" "$COMPOSE_FILE"; then
-      echo "✅ Successfully modified compose file. The installer can now proceed."
+      echo "✅ Successfully modified compose file. Handing control to installer."
     else
-      echo "❌ Failed to modify the compose file. Please check the sed commands."
+      echo "❌ Failed to modify the compose file. Please check the corrected sed commands."
+      # echo "--- Current Compose File Content ---"
+      # cat "$COMPOSE_FILE"
+      # echo "------------------------------------"
       exit 1
     fi
-
-    echo "🏁 Synchronous pre-install fixer finished. Handing control back to the installer."
     
