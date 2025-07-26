@@ -91,7 +91,7 @@ x-casaos:
   webui_port: 3000
   pre-install-cmd: |
     # Generate the hash value that will be embedded into the background script.
-    AUTH_HASH=$(openssl rand -hex 32)
+    AUTH_HASH=$(openssl rand -hex 64)
     
     # Create a simplified watcher that waits for compose file and fixes docker.sock
     # We use `EOF` without quotes to allow the parent shell to expand ${AUTH_HASH} into the script's text.
