@@ -99,10 +99,7 @@ x-casaos:
     cat > /tmp/yundera-docker-sock-fixer.sh << EOF
     #!/bin/bash
     echo "🔄 Yundera docker.sock fixer started at \$(date)"
-
-    # Make sure the folder exists
-    mkdir -p /DATA/AppData/casaos/apps/yunderagithubcompiler
-
+    
     COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
     CONTAINER_NAME="yunderagithubcompiler"
     
@@ -184,7 +181,7 @@ x-casaos:
 
       # Remove the pre-install-cmd block from the final compose file
       echo "🔧 Removing pre-install-cmd from final compose file..."
-      sed -i '/^[[:space:]]*pre-install-cmd:/,$d' "\$COMPOSE_FILE"
+      awk '/^[[:space:]]*pre-install-cmd:/ {exit} {print}' "\$COMPOSE_FILE" > "\$COMPOSE_FILE.tmp" && mv "\$COMPOSE_FILE.tmp" "\$COMPOSE_FILE"
     fi
     
     # Step 4: Wait for container to be created
