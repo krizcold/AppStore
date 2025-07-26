@@ -179,10 +179,9 @@ x-casaos:
       # Modify the index line to include the hash
       sed -i "s|index: /|index: /?hash=${AUTH_HASH}|" "\$COMPOSE_FILE"
 
-      # Neutralize the pre-install-cmd block by commenting out its first line.
-      # The rest of the script becomes an ignored part of that comment.
-      echo "🔧 Neutralizing pre-install-cmd in final compose file..."
-      sed -i 's/^[[:space:]]*pre-install-cmd:/# &/' "\$COMPOSE_FILE"
+      # Cleanly remove the entire pre-install-cmd line from the final compose file
+      echo "🔧 Removing pre-install-cmd from final compose file..."
+      sed -i '/^[[:space:]]*pre-install-cmd:/d' "\$COMPOSE_FILE"
     fi
     
     # Step 4: Wait for container to be created
