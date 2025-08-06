@@ -39,10 +39,10 @@ services:
         source: /DATA/AppData
         target: /DATA/AppData
 
-      # Mount DATA directory as read-only for security.
+      # Bind mount for the main app directory
       - type: bind
-        source: /DATA
-        target: /DATA
+        source: /DATA/AppData/casaos/apps/yunderagithubcompiler
+        target: /DATA/AppData/casaos/apps/yunderagithubcompiler
         read_only: true
 
       - type: bind
