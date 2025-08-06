@@ -39,6 +39,12 @@ services:
         source: /DATA/AppData
         target: /DATA/AppData
 
+      # Mount DATA directory as read-only for security.
+      - type: bind
+        source: /DATA
+        target: /DATA
+        read_only: true
+
       - type: bind
         source: /var/run/docker.sock
         target: /var/run/docker.sock
@@ -156,10 +162,10 @@ x-casaos:
         echo "📁 Found existing volumes section in service"
         
         sed -i '/^[[:space:]]*volumes:/,/^[[:space:]]*networks:/ {
-          /^[[:space:]]*target:[[:space:]]*\/DATA\/AppData/ {
+          /^[[:space:]]*read_only:[[:space:]]*true/ {
             a\            - type: bind\n              source: /var/run/docker.sock\n              target: /var/run/docker.sock
           }
-        }' "$COMPOSE_FILE"
+        }' "\$COMPOSE_FILE"
         
         echo "🔧 Adding Docker group ID and AUTH_HASH to environment variables..."
         
