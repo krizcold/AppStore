@@ -156,10 +156,10 @@ x-casaos:
         echo "📁 Found existing volumes section in service"
         
         sed -i '/^[[:space:]]*volumes:/,/^[[:space:]]*networks:/ {
-          /^[[:space:]]*read_only:[[:space:]]*true/ {
+          /^[[:space:]]*target:[[:space:]]*\/DATA\/AppData/ {
             a\            - type: bind\n              source: /var/run/docker.sock\n              target: /var/run/docker.sock
           }
-        }' "\$COMPOSE_FILE"
+        }' "$COMPOSE_FILE"
         
         echo "🔧 Adding Docker group ID and AUTH_HASH to environment variables..."
         
