@@ -23,6 +23,21 @@ services:
       CASAOS_API_PORT: "8080"
       DATA_ROOT: $DATA_ROOT
       
+      # Yundera platform integration
+      DOMAIN: $DOMAIN
+      PROVIDER_STR: $PROVIDER_STR
+      UID: $UID
+      DEFAULT_PWD: $DEFAULT_PWD
+      PUBLIC_IP: $PUBLIC_IP
+      DEFAULT_USER: $DEFAULT_USER
+      
+      # Authentication and paths
+      JWT_SECRET: $JWT_SECRET
+      AUTHORITY_ENDPOINT: $AUTHORITY_ENDPOINT
+      COMPOSE_FOLDER_PATH: $COMPOSE_FOLDER_PATH
+      BASE_PATH: $BASE_PATH
+      MOCK: $MOCK
+      
       # Pass through the host's CasaOS environment variables.
       # These will be populated by the AppStore during installation.
       PUID: $PUID
