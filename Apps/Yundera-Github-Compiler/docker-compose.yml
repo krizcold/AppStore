@@ -123,9 +123,6 @@ x-casaos:
   index: /
   webui_port: 3000
   pre-install-cmd: |
-    mkdir -p /DATA/AppData/casaos/apps/yunderagithubcompiler/repos
-    mkdir -p /DATA/AppData/casaos/apps/yunderagithubcompiler/uidata
-    echo "📁 Created directories for Yundera GitHub Compiler."
     # Generate the hash value that will be embedded into the background script.
     AUTH_HASH=$(openssl rand -hex 64)
     
