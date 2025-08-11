@@ -62,11 +62,6 @@ services:
         source: /DATA/AppData/yunderagithubcompiler/uidata
         target: /app/uidata
 
-      # Writable mount for app metadata
-      - type: bind
-        source: /DATA/AppData
-        target: /DATA/AppData
-
       # Bind mount for the main app directory
       - type: bind
         source: /DATA/AppData/casaos/apps/yunderagithubcompiler
