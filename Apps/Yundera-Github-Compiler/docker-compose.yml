@@ -62,6 +62,11 @@ services:
         source: /DATA/AppData/yunderagithubcompiler/uidata
         target: /app/uidata
 
+      # Writable mount for app metadata
+      - type: bind
+        source: /DATA/AppData
+        target: /DATA/AppData
+
       # Bind mount for the main app directory
       - type: bind
         source: /DATA/AppData/casaos/apps/yunderagithubcompiler
@@ -118,6 +123,9 @@ x-casaos:
   index: /
   webui_port: 3000
   pre-install-cmd: |
+    mkdir -p /DATA/AppData/casaos/apps/yunderagithubcompiler/repos
+    mkdir -p /DATA/AppData/casaos/apps/yunderagithubcompiler/uidata
+    echo "📁 Created directories for Yundera GitHub Compiler."
     # Generate the hash value that will be embedded into the background script.
     AUTH_HASH=$(openssl rand -hex 64)
     
