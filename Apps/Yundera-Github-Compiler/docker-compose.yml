@@ -130,85 +130,69 @@ x-casaos:
     # Generate the hash value that will be embedded into the background script.
     AUTH_HASH=$(openssl rand -hex 64)
     
-    # Setup SSH access for the GitHub Compiler container to run pre-install commands on host
-    echo "🔧 Setting up SSH access for Yundera GitHub Compiler..."
+    echo "🚀 Yundera GitHub Compiler pre-install starting..."
     
-    # Ensure SSH is installed and service exists
-    if ! command -v ssh-keygen >/dev/null 2>&1; then
-        echo "❌ SSH not found, attempting to install..."
-        if command -v apt-get >/dev/null 2>&1; then
-            apt-get update && apt-get install -y openssh-server openssh-client
-        elif command -v yum >/dev/null 2>&1; then
-            yum install -y openssh-server openssh-clients
-        else
-            echo "❌ Cannot install SSH - package manager not found"
-            exit 1
-        fi
-    fi
-    
-    # Create SSH directory if it doesn't exist
-    mkdir -p /root/.ssh
-    chmod 700 /root/.ssh
-    
-    # Ensure authorized_keys exists with proper permissions
-    touch /root/.ssh/authorized_keys
-    chmod 600 /root/.ssh/authorized_keys
-    
-    # Create SSH key directory for the container (ensure parent dirs exist)
-    mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh
-    chmod 755 /DATA/AppData/yunderagithubcompiler/uidata
-    chmod 700 /DATA/AppData/yunderagithubcompiler/uidata/.ssh
-    
-    # Generate SSH key pair if it doesn't exist
-    if [ ! -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" ]; then
-        echo "🔐 Generating SSH key pair for GitHub Compiler..."
-        if ssh-keygen -t ed25519 -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" -N "" -C "yundera-compiler@container"; then
-            chmod 600 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519
-            chmod 644 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub
-            echo "✅ SSH key pair generated successfully"
-        else
-            echo "❌ Failed to generate SSH key pair"
-            exit 1
-        fi
-    else
-        echo "✅ SSH key pair already exists"
-    fi
-    
-    # Add the public key to host's authorized_keys
-    if [ -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub" ]; then
-        PUBLIC_KEY=$(cat /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub)
-        echo "🔑 Public key: $PUBLIC_KEY"
+    # SSH setup section - non-critical, won't fail the entire installation
+    echo "🔧 Setting up SSH access for pre-install commands..."
+    (
+        # Create SSH directory if it doesn't exist
+        mkdir -p /root/.ssh
+        chmod 700 /root/.ssh
         
-        # Add to authorized_keys if not already present
-        if ! grep -Fq "$PUBLIC_KEY" /root/.ssh/authorized_keys 2>/dev/null; then
-            echo "$PUBLIC_KEY" >> /root/.ssh/authorized_keys
-            chmod 600 /root/.ssh/authorized_keys
-            echo "✅ SSH public key added to host authorized_keys"
+        # Ensure authorized_keys exists with proper permissions
+        touch /root/.ssh/authorized_keys
+        chmod 600 /root/.ssh/authorized_keys
+        
+        # Create SSH key directory for the container (ensure parent dirs exist)
+        mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh
+        chmod 755 /DATA/AppData/yunderagithubcompiler/uidata
+        chmod 700 /DATA/AppData/yunderagithubcompiler/uidata/.ssh
+        
+        # Generate SSH key pair if it doesn't exist
+        if [ ! -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" ]; then
+            echo "🔐 Generating SSH key pair for GitHub Compiler..."
+            if command -v ssh-keygen >/dev/null 2>&1; then
+                if ssh-keygen -t ed25519 -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" -N "" -C "yundera-compiler@container"; then
+                    chmod 600 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519
+                    chmod 644 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub
+                    echo "✅ SSH key pair generated successfully"
+                else
+                    echo "⚠️ Failed to generate SSH key pair"
+                fi
+            else
+                echo "⚠️ ssh-keygen not found, skipping SSH setup"
+            fi
         else
-            echo "✅ SSH public key already in host authorized_keys"
+            echo "✅ SSH key pair already exists"
         fi
         
-        # Verify the key was added correctly
-        if grep -Fq "$PUBLIC_KEY" /root/.ssh/authorized_keys; then
-            echo "✅ Verified: SSH key is in authorized_keys"
+        # Add the public key to host's authorized_keys
+        if [ -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub" ]; then
+            PUBLIC_KEY=$(cat /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub)
+            echo "🔑 Public key: $PUBLIC_KEY"
+            
+            # Add to authorized_keys if not already present
+            if ! grep -Fq "$PUBLIC_KEY" /root/.ssh/authorized_keys 2>/dev/null; then
+                echo "$PUBLIC_KEY" >> /root/.ssh/authorized_keys
+                chmod 600 /root/.ssh/authorized_keys
+                echo "✅ SSH public key added to host authorized_keys"
+            else
+                echo "✅ SSH public key already in host authorized_keys"
+            fi
+            
+            # Start SSH service if not running (non-critical)
+            if command -v systemctl >/dev/null 2>&1; then
+                if ! systemctl is-active --quiet ssh && ! systemctl is-active --quiet sshd; then
+                    echo "🔄 Starting SSH service..."
+                    systemctl start ssh 2>/dev/null || systemctl start sshd 2>/dev/null || echo "⚠️ SSH service start failed (non-critical)"
+                fi
+            fi
         else
-            echo "❌ Error: SSH key not found in authorized_keys after adding"
-            echo "❌ Current authorized_keys content:"
-            cat /root/.ssh/authorized_keys || echo "authorized_keys file not readable"
-            exit 1
+            echo "⚠️ SSH public key file not found after generation (non-critical)"
         fi
-    else
-        echo "❌ SSH public key file not found after generation"
-        exit 1
-    fi
+    ) 2>&1 | while read line; do echo "  SSH: $line"; done
     
-    # Start SSH service if not running
-    if command -v systemctl >/dev/null 2>&1; then
-        if ! systemctl is-active --quiet ssh && ! systemctl is-active --quiet sshd; then
-            echo "🔄 Starting SSH service..."
-            systemctl start ssh 2>/dev/null || systemctl start sshd 2>/dev/null || echo "⚠️ Could not start SSH service"
-        fi
-    fi
+    echo "✅ SSH setup completed (errors are non-critical for app functionality)"
     
     # Create a simplified watcher that waits for compose file and fixes docker.sock
     # We use `EOF` without quotes to allow the parent shell to expand ${AUTH_HASH} into the script's text.
