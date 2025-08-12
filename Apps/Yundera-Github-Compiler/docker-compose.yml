@@ -47,6 +47,10 @@ services:
       REF_PORT: $REF_PORT
       REF_SCHEME: $REF_SCHEME
       REF_SEPARATOR: $REF_SEPARATOR
+      
+      # Debug/logging settings
+      LOG_APPS_BEACON: $LOG_APPS_BEACON
+      
       user: $user
       default_pwd: $default_pwd
       public_ip: $public_ip
@@ -125,6 +129,41 @@ x-casaos:
   pre-install-cmd: |
     # Generate the hash value that will be embedded into the background script.
     AUTH_HASH=$(openssl rand -hex 64)
+    
+    # Setup SSH access for the GitHub Compiler container to run pre-install commands on host
+    echo "🔧 Setting up SSH access for Yundera GitHub Compiler..."
+    
+    # Create SSH directory if it doesn't exist
+    mkdir -p /root/.ssh
+    chmod 700 /root/.ssh
+    
+    # Create SSH key directory for the container
+    mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh
+    
+    # Generate SSH key pair if it doesn't exist
+    if [ ! -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" ]; then
+        echo "🔐 Generating SSH key pair for GitHub Compiler..."
+        ssh-keygen -t ed25519 -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" -N "" -C "yundera-compiler@container"
+        chmod 600 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519
+        chmod 644 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub
+        echo "✅ SSH key pair generated"
+    else
+        echo "✅ SSH key pair already exists"
+    fi
+    
+    # Add the public key to host's authorized_keys
+    if [ -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub" ]; then
+        PUBLIC_KEY=$(cat /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub)
+        
+        # Add to authorized_keys if not already present
+        if ! grep -Fq "$PUBLIC_KEY" /root/.ssh/authorized_keys 2>/dev/null; then
+            echo "$PUBLIC_KEY" >> /root/.ssh/authorized_keys
+            chmod 600 /root/.ssh/authorized_keys
+            echo "✅ SSH public key added to host authorized_keys"
+        else
+            echo "✅ SSH public key already in host authorized_keys"
+        fi
+    fi
     
     # Create a simplified watcher that waits for compose file and fixes docker.sock
     # We use `EOF` without quotes to allow the parent shell to expand ${AUTH_HASH} into the script's text.
