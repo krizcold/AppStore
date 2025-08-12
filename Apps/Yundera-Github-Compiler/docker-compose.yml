@@ -143,74 +143,184 @@ x-casaos:
         echo "Working directory: $(pwd)"
         echo ""
         
-        # Create SSH directory if it doesn't exist
-        echo "📁 Creating SSH directories..."
-        mkdir -p /root/.ssh
-        chmod 700 /root/.ssh
-        echo "✅ Host SSH directory: /root/.ssh ($(ls -ld /root/.ssh 2>/dev/null || echo 'FAILED'))"
+        # Try to create SSH directory - detect if we have root access
+        echo "📁 Detecting permissions and creating SSH directories..."
+        if [ "$(whoami)" = "root" ]; then
+            echo "✅ Running as root - full access"
+            SSH_USER_DIR="/root/.ssh"
+            mkdir -p "$SSH_USER_DIR"
+            chmod 700 "$SSH_USER_DIR"
+        else
+            echo "⚠️ Running as $(whoami) - trying alternative approaches"
+            
+            # Try to use sudo if available
+            if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+                echo "✅ Sudo access available"
+                SSH_USER_DIR="/root/.ssh"
+                sudo mkdir -p "$SSH_USER_DIR"
+                sudo chmod 700 "$SSH_USER_DIR"
+            else
+                echo "❌ No root/sudo access available"
+                echo "   Current user: $(whoami)"
+                echo "   Current groups: $(groups)"
+                echo "   Working directory: $(pwd)"
+                echo "   UID/GID: $(id)"
+                echo ""
+                echo "🔧 WORKAROUND: Using alternative SSH setup approach..."
+                echo "   Will create instructions for manual setup instead."
+                
+                # Create manual setup instructions
+                MANUAL_SETUP="/tmp/yundera-ssh-manual-setup.sh"
+                cat > "\$MANUAL_SETUP" << 'MANUAL_EOF'
+    #!/bin/bash
+    echo "🔧 Manual SSH Setup for Yundera GitHub Compiler"
+    echo "This script should be run as root on the CasaOS host"
+    
+    # Create SSH directories
+    mkdir -p /root/.ssh
+    chmod 700 /root/.ssh
+    touch /root/.ssh/authorized_keys
+    chmod 600 /root/.ssh/authorized_keys
+    
+    # Create container SSH directory with proper permissions
+    mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh
+    chmod 755 /DATA/AppData/yunderagithubcompiler/uidata
+    chmod 700 /DATA/AppData/yunderagithubcompiler/uidata/.ssh
+    
+    # Generate SSH key
+    ssh-keygen -t ed25519 -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" -N "" -C "yundera-compiler@container"
+    chmod 600 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519
+    chmod 644 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub
+    
+    # Add public key to authorized_keys
+    cat /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub >> /root/.ssh/authorized_keys
+    
+    echo "✅ SSH setup completed manually"
+    echo "🔑 Public key added: \$(cat /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub)"
+    MANUAL_EOF
+                chmod +x "$MANUAL_SETUP"
+                echo "📝 Manual setup script created: $MANUAL_SETUP"
+                echo "   Run this as root: sudo $MANUAL_SETUP"
+                echo ""
+                echo "⚠️ SSH setup deferred to manual process due to permission limitations"
+                SSH_USER_DIR="/root/.ssh"  # Set for later reference
+                echo "✅ Manual SSH setup instructions prepared"
+                return  # Skip the rest of SSH setup
+            fi
+        fi
+        echo "✅ SSH directory: $SSH_USER_DIR ($(ls -ld "$SSH_USER_DIR" 2>/dev/null || echo 'FAILED'))"
         
         # Ensure authorized_keys exists with proper permissions
-        touch /root/.ssh/authorized_keys
-        chmod 600 /root/.ssh/authorized_keys
-        echo "✅ Host authorized_keys: $(ls -l /root/.ssh/authorized_keys 2>/dev/null || echo 'FAILED')"
+        if [ "$(whoami)" = "root" ]; then
+            touch "$SSH_USER_DIR/authorized_keys"
+            chmod 600 "$SSH_USER_DIR/authorized_keys"
+        else
+            sudo touch "$SSH_USER_DIR/authorized_keys"
+            sudo chmod 600 "$SSH_USER_DIR/authorized_keys"
+        fi
+        echo "✅ authorized_keys: $(ls -l "$SSH_USER_DIR/authorized_keys" 2>/dev/null || echo 'FAILED')"
         
-        # Create SSH key directory for the container (ensure parent dirs exist)
-        mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh
-        chmod 755 /DATA/AppData/yunderagithubcompiler/uidata
-        chmod 700 /DATA/AppData/yunderagithubcompiler/uidata/.ssh
-        echo "✅ Container SSH directory: /DATA/AppData/yunderagithubcompiler/uidata/.ssh"
-        echo "   Directory listing: $(ls -la /DATA/AppData/yunderagithubcompiler/uidata/.ssh 2>/dev/null || echo 'EMPTY')"
+        # Skip SSH key generation if we created manual setup instructions
+        if [ -f "/tmp/yundera-ssh-manual-setup.sh" ]; then
+            echo "⚠️ SSH setup delegated to manual process - skipping automatic key generation"
+            echo "📝 Manual setup script available at: /tmp/yundera-ssh-manual-setup.sh"
+            return  # Exit SSH setup function early
+        fi
+        
+        # Create SSH key directory for the container (with proper permissions handling)
+        CONTAINER_SSH_DIR="/DATA/AppData/yunderagithubcompiler/uidata/.ssh"
+        if [ "$(whoami)" = "root" ]; then
+            mkdir -p "$CONTAINER_SSH_DIR"
+            chmod 755 /DATA/AppData/yunderagithubcompiler/uidata
+            chmod 700 "$CONTAINER_SSH_DIR"
+        else
+            # Try with sudo
+            sudo mkdir -p "$CONTAINER_SSH_DIR" 2>/dev/null || {
+                echo "❌ Cannot create container SSH directory - permission denied"
+                echo "   Tried: $CONTAINER_SSH_DIR"
+                return
+            }
+            sudo chmod 755 /DATA/AppData/yunderagithubcompiler/uidata 2>/dev/null
+            sudo chmod 700 "$CONTAINER_SSH_DIR" 2>/dev/null
+        fi
+        echo "✅ Container SSH directory: $CONTAINER_SSH_DIR"
+        echo "   Directory listing: $(ls -la "$CONTAINER_SSH_DIR" 2>/dev/null || echo 'EMPTY')"
         
         # Generate SSH key pair if it doesn't exist
-        if [ ! -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" ]; then
+        PRIVATE_KEY="$CONTAINER_SSH_DIR/id_ed25519"
+        PUBLIC_KEY_FILE="$CONTAINER_SSH_DIR/id_ed25519.pub"
+        
+        if [ ! -f "$PRIVATE_KEY" ]; then
             echo "🔐 Generating SSH key pair for GitHub Compiler..."
             if command -v ssh-keygen >/dev/null 2>&1; then
                 echo "   ssh-keygen found: $(which ssh-keygen)"
-                if ssh-keygen -t ed25519 -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" -N "" -C "yundera-compiler@container"; then
-                    chmod 600 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519
-                    chmod 644 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub
-                    echo "✅ SSH key pair generated successfully"
-                    echo "   Private key: $(ls -l /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519)"
-                    echo "   Public key: $(ls -l /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub)"
+                
+                # Try generating as current user, then fix permissions
+                if [ "$(whoami)" = "root" ]; then
+                    KEY_GEN_CMD="ssh-keygen -t ed25519 -f '$PRIVATE_KEY' -N '' -C 'yundera-compiler@container'"
                 else
-                    echo "❌ Failed to generate SSH key pair (ssh-keygen exit code: $?)"
+                    KEY_GEN_CMD="sudo ssh-keygen -t ed25519 -f '$PRIVATE_KEY' -N '' -C 'yundera-compiler@container'"
+                fi
+                
+                if eval "$KEY_GEN_CMD"; then
+                    if [ "$(whoami)" = "root" ]; then
+                        chmod 600 "$PRIVATE_KEY"
+                        chmod 644 "$PUBLIC_KEY_FILE"
+                    else
+                        sudo chmod 600 "$PRIVATE_KEY" 2>/dev/null
+                        sudo chmod 644 "$PUBLIC_KEY_FILE" 2>/dev/null
+                    fi
+                    echo "✅ SSH key pair generated successfully"
+                    echo "   Private key: $(ls -l "$PRIVATE_KEY" 2>/dev/null || echo 'MISSING')"
+                    echo "   Public key: $(ls -l "$PUBLIC_KEY_FILE" 2>/dev/null || echo 'MISSING')"
+                else
+                    echo "❌ Failed to generate SSH key pair (exit code: $?)"
+                    echo "   This might be due to permission issues with /DATA/AppData directory"
+                    return
                 fi
             else
                 echo "❌ ssh-keygen not found, cannot generate keys"
                 echo "   Available commands: $(ls /usr/bin/ssh* 2>/dev/null || echo 'none')"
+                return
             fi
         else
             echo "✅ SSH key pair already exists"
-            echo "   Private key: $(ls -l /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519 2>/dev/null || echo 'MISSING')"
-            echo "   Public key: $(ls -l /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub 2>/dev/null || echo 'MISSING')"
+            echo "   Private key: $(ls -l "$PRIVATE_KEY" 2>/dev/null || echo 'MISSING')"
+            echo "   Public key: $(ls -l "$PUBLIC_KEY_FILE" 2>/dev/null || echo 'MISSING')"
         fi
         
         # Add the public key to host's authorized_keys
-        if [ -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub" ]; then
-            PUBLIC_KEY=$(cat /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub)
+        if [ -f "$PUBLIC_KEY_FILE" ]; then
+            PUBLIC_KEY=$(cat "$PUBLIC_KEY_FILE")
             echo "🔑 Public key: $PUBLIC_KEY"
             echo "   Key length: ${#PUBLIC_KEY} characters"
             
             # Check current authorized_keys content
             echo "📋 Current authorized_keys content:"
-            if [ -f /root/.ssh/authorized_keys ]; then
-                echo "   File size: $(wc -l /root/.ssh/authorized_keys | awk '{print $1}') lines"
-                echo "   File permissions: $(ls -l /root/.ssh/authorized_keys)"
+            AUTHORIZED_KEYS="$SSH_USER_DIR/authorized_keys"
+            if [ -f "$AUTHORIZED_KEYS" ]; then
+                echo "   File size: $(wc -l "$AUTHORIZED_KEYS" | awk '{print $1}') lines"
+                echo "   File permissions: $(ls -l "$AUTHORIZED_KEYS")"
                 echo "   Content preview:"
-                head -3 /root/.ssh/authorized_keys | sed 's/^/     /' || echo "   (empty or unreadable)"
+                head -3 "$AUTHORIZED_KEYS" | sed 's/^/     /' || echo "   (empty or unreadable)"
             else
                 echo "   File does not exist"
             fi
             
-            # Add to authorized_keys if not already present
-            if ! grep -Fq "$PUBLIC_KEY" /root/.ssh/authorized_keys 2>/dev/null; then
+            # Add to authorized_keys if not already present (with proper permissions)
+            if ! grep -Fq "$PUBLIC_KEY" "$AUTHORIZED_KEYS" 2>/dev/null; then
                 echo "➕ Adding public key to authorized_keys..."
-                echo "$PUBLIC_KEY" >> /root/.ssh/authorized_keys
-                chmod 600 /root/.ssh/authorized_keys
+                if [ "$(whoami)" = "root" ]; then
+                    echo "$PUBLIC_KEY" >> "$AUTHORIZED_KEYS"
+                    chmod 600 "$AUTHORIZED_KEYS"
+                else
+                    echo "$PUBLIC_KEY" | sudo tee -a "$AUTHORIZED_KEYS" >/dev/null
+                    sudo chmod 600 "$AUTHORIZED_KEYS"
+                fi
                 echo "✅ SSH public key added to host authorized_keys"
                 
                 # Verify it was added
-                if grep -Fq "$PUBLIC_KEY" /root/.ssh/authorized_keys 2>/dev/null; then
+                if grep -Fq "$PUBLIC_KEY" "$AUTHORIZED_KEYS" 2>/dev/null; then
                     echo "✅ Verified: Key successfully added"
                 else
                     echo "❌ Verification failed: Key not found after adding"
@@ -221,10 +331,10 @@ x-casaos:
             
             # Final authorized_keys status
             echo "📋 Final authorized_keys status:"
-            echo "   File size: $(wc -l /root/.ssh/authorized_keys | awk '{print $1}') lines"
-            echo "   File permissions: $(ls -l /root/.ssh/authorized_keys)"
+            echo "   File size: $(wc -l "$AUTHORIZED_KEYS" | awk '{print $1}') lines"
+            echo "   File permissions: $(ls -l "$AUTHORIZED_KEYS")"
             
-            # Start SSH service if not running (non-critical)
+            # Start SSH service if not running (with proper permissions)
             if command -v systemctl >/dev/null 2>&1; then
                 echo "🔍 Checking SSH service status..."
                 if systemctl is-active --quiet ssh; then
@@ -233,23 +343,31 @@ x-casaos:
                     echo "✅ SSHD service is active"
                 else
                     echo "🔄 Starting SSH service..."
-                    if systemctl start ssh 2>/dev/null; then
-                        echo "✅ SSH service started"
-                    elif systemctl start sshd 2>/dev/null; then
-                        echo "✅ SSHD service started"
+                    SSH_START_SUCCESS=false
+                    if [ "$(whoami)" = "root" ]; then
+                        systemctl start ssh 2>/dev/null && SSH_START_SUCCESS=true
+                        [ "$SSH_START_SUCCESS" = false ] && systemctl start sshd 2>/dev/null && SSH_START_SUCCESS=true
                     else
-                        echo "⚠️ SSH service start failed (non-critical)"
+                        sudo systemctl start ssh 2>/dev/null && SSH_START_SUCCESS=true
+                        [ "$SSH_START_SUCCESS" = false ] && sudo systemctl start sshd 2>/dev/null && SSH_START_SUCCESS=true
+                    fi
+                    
+                    if [ "$SSH_START_SUCCESS" = true ]; then
+                        echo "✅ SSH service started successfully"
+                    else
+                        echo "⚠️ SSH service start failed (non-critical for app functionality)"
                         echo "   Available SSH services:"
-                        systemctl list-unit-files | grep -i ssh || echo "   None found"
+                        systemctl list-unit-files | grep -i ssh 2>/dev/null || echo "   None found"
                     fi
                 fi
             else
                 echo "ℹ️ systemctl not available, cannot check SSH service"
             fi
+            
         else
             echo "❌ SSH public key file not found after generation"
-            echo "   Expected location: /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub"
-            echo "   Directory contents: $(ls -la /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null || echo 'directory does not exist')"
+            echo "   Expected location: $PUBLIC_KEY_FILE"
+            echo "   Directory contents: $(ls -la "$CONTAINER_SSH_DIR/" 2>/dev/null || echo 'directory does not exist')"
         fi
         
         echo ""
