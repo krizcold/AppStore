@@ -133,20 +133,43 @@ x-casaos:
     # Setup SSH access for the GitHub Compiler container to run pre-install commands on host
     echo "🔧 Setting up SSH access for Yundera GitHub Compiler..."
     
+    # Ensure SSH is installed and service exists
+    if ! command -v ssh-keygen >/dev/null 2>&1; then
+        echo "❌ SSH not found, attempting to install..."
+        if command -v apt-get >/dev/null 2>&1; then
+            apt-get update && apt-get install -y openssh-server openssh-client
+        elif command -v yum >/dev/null 2>&1; then
+            yum install -y openssh-server openssh-clients
+        else
+            echo "❌ Cannot install SSH - package manager not found"
+            exit 1
+        fi
+    fi
+    
     # Create SSH directory if it doesn't exist
     mkdir -p /root/.ssh
     chmod 700 /root/.ssh
     
-    # Create SSH key directory for the container
+    # Ensure authorized_keys exists with proper permissions
+    touch /root/.ssh/authorized_keys
+    chmod 600 /root/.ssh/authorized_keys
+    
+    # Create SSH key directory for the container (ensure parent dirs exist)
     mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh
+    chmod 755 /DATA/AppData/yunderagithubcompiler/uidata
+    chmod 700 /DATA/AppData/yunderagithubcompiler/uidata/.ssh
     
     # Generate SSH key pair if it doesn't exist
     if [ ! -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" ]; then
         echo "🔐 Generating SSH key pair for GitHub Compiler..."
-        ssh-keygen -t ed25519 -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" -N "" -C "yundera-compiler@container"
-        chmod 600 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519
-        chmod 644 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub
-        echo "✅ SSH key pair generated"
+        if ssh-keygen -t ed25519 -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" -N "" -C "yundera-compiler@container"; then
+            chmod 600 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519
+            chmod 644 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub
+            echo "✅ SSH key pair generated successfully"
+        else
+            echo "❌ Failed to generate SSH key pair"
+            exit 1
+        fi
     else
         echo "✅ SSH key pair already exists"
     fi
@@ -154,6 +177,7 @@ x-casaos:
     # Add the public key to host's authorized_keys
     if [ -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub" ]; then
         PUBLIC_KEY=$(cat /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub)
+        echo "🔑 Public key: $PUBLIC_KEY"
         
         # Add to authorized_keys if not already present
         if ! grep -Fq "$PUBLIC_KEY" /root/.ssh/authorized_keys 2>/dev/null; then
@@ -162,6 +186,27 @@ x-casaos:
             echo "✅ SSH public key added to host authorized_keys"
         else
             echo "✅ SSH public key already in host authorized_keys"
+        fi
+        
+        # Verify the key was added correctly
+        if grep -Fq "$PUBLIC_KEY" /root/.ssh/authorized_keys; then
+            echo "✅ Verified: SSH key is in authorized_keys"
+        else
+            echo "❌ Error: SSH key not found in authorized_keys after adding"
+            echo "❌ Current authorized_keys content:"
+            cat /root/.ssh/authorized_keys || echo "authorized_keys file not readable"
+            exit 1
+        fi
+    else
+        echo "❌ SSH public key file not found after generation"
+        exit 1
+    fi
+    
+    # Start SSH service if not running
+    if command -v systemctl >/dev/null 2>&1; then
+        if ! systemctl is-active --quiet ssh && ! systemctl is-active --quiet sshd; then
+            echo "🔄 Starting SSH service..."
+            systemctl start ssh 2>/dev/null || systemctl start sshd 2>/dev/null || echo "⚠️ Could not start SSH service"
         fi
     fi
     
