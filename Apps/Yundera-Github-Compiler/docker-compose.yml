@@ -145,31 +145,94 @@ x-casaos:
         echo "Working directory: $(pwd)"
         echo ""
         
-        echo "📁 Creating directories and fixing permissions (chmod only)..."
+        echo "📁 Step-by-step directory creation and permission fixing..."
         
-        # Create the entire directory structure at once
-        echo "🔨 Creating directory structure..."
-        mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh/
-        mkdir -p /home/ubuntu/.ssh
+        # Step 1: Create and fix yunderagithubcompiler directory
+        echo ""
+        echo "🔨 STEP 1: Creating and fixing yunderagithubcompiler directory..."
+        mkdir -p /DATA/AppData/yunderagithubcompiler/
+        echo "   Directory created: $(ls -ld /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || echo 'FAILED')"
         
-        # Fix permissions with chmod only (no ownership changes needed)
-        echo "🔒 Setting permissions with chmod..."
-        chmod 755 /DATA/AppData/yunderagithubcompiler/ 2>/dev/null && echo "✅ Base directory permissions set" || echo "⚠️ Could not chmod base directory"
-        chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null && echo "✅ uidata directory permissions set" || echo "⚠️ Could not chmod uidata directory"  
-        chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null && echo "✅ .ssh directory permissions set" || echo "⚠️ Could not chmod .ssh directory"
-        chmod 700 /home/ubuntu/.ssh 2>/dev/null && echo "✅ Ubuntu SSH directory permissions set" || echo "⚠️ Could not chmod ubuntu SSH directory"
+        if chmod 755 /DATA/AppData/yunderagithubcompiler/ 2>/dev/null; then
+            echo "✅ yunderagithubcompiler directory permissions set to 755"
+        else
+            echo "❌ Cannot set permissions on yunderagithubcompiler directory"
+            echo "   Current permissions: $(ls -ld /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || echo 'cannot read')"
+        fi
         
-        echo "✅ Directory structure created"
+        # Test write access to yunderagithubcompiler
+        if touch /DATA/AppData/yunderagithubcompiler/.test_write 2>/dev/null; then
+            rm -f /DATA/AppData/yunderagithubcompiler/.test_write
+            echo "✅ yunderagithubcompiler directory is writable"
+        else
+            echo "❌ yunderagithubcompiler directory is NOT writable"
+            echo "   Cannot proceed - this directory must be writable first"
+        fi
         
-        # Test write access
-        echo "🧪 Testing write access to uidata directory..."
+        # Step 2: Create and fix uidata directory
+        echo ""
+        echo "🔨 STEP 2: Creating and fixing uidata directory..."
+        mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/
+        echo "   Directory created: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null || echo 'FAILED')"
+        
+        if chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null; then
+            echo "✅ uidata directory permissions set to 755"
+        else
+            echo "❌ Cannot set permissions on uidata directory"
+            echo "   Current permissions: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null || echo 'cannot read')"
+        fi
+        
+        # Test write access to uidata
         if touch /DATA/AppData/yunderagithubcompiler/uidata/.test_write 2>/dev/null; then
             rm -f /DATA/AppData/yunderagithubcompiler/uidata/.test_write
-            echo "✅ Write access confirmed - permissions are working!"
+            echo "✅ uidata directory is writable"
         else
-            echo "❌ Still cannot write to uidata directory"
-            echo "   Directory listing: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null || echo 'cannot read')"
+            echo "❌ uidata directory is NOT writable"
+            echo "   Cannot proceed - uidata must be writable for SSH keys"
         fi
+        
+        # Step 3: Create and fix .ssh directory
+        echo ""
+        echo "🔨 STEP 3: Creating and fixing .ssh directory..."
+        mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh/
+        echo "   Directory created: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null || echo 'FAILED')"
+        
+        # Try multiple permission approaches for .ssh
+        if chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null; then
+            echo "✅ .ssh directory permissions set to 755"
+        elif chmod 777 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null; then
+            echo "✅ .ssh directory permissions set to 777 (fallback)"
+        else
+            echo "❌ Cannot set permissions on .ssh directory - trying recreation..."
+            rmdir /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null
+            mkdir /DATA/AppData/yunderagithubcompiler/uidata/.ssh/
+            if chmod 777 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null; then
+                echo "✅ Recreated .ssh directory with 777 permissions"
+            else
+                echo "❌ Still cannot set permissions on .ssh directory"
+                echo "   Current permissions: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null || echo 'cannot read')"
+            fi
+        fi
+        
+        # Test write access to .ssh
+        if touch /DATA/AppData/yunderagithubcompiler/uidata/.ssh/.test_write 2>/dev/null; then
+            rm -f /DATA/AppData/yunderagithubcompiler/uidata/.ssh/.test_write
+            echo "✅ .ssh directory is writable - SSH key generation should work!"
+        else
+            echo "❌ .ssh directory is NOT writable"
+            echo "   This is exactly why SSH key generation fails"
+            echo "   Current permissions: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null || echo 'cannot read')"
+        fi
+        
+        # Also create ubuntu SSH directory for fallback
+        mkdir -p /home/ubuntu/.ssh
+        chmod 700 /home/ubuntu/.ssh 2>/dev/null && echo "✅ Ubuntu SSH directory ready as fallback" || echo "⚠️ Could not set ubuntu SSH permissions"
+        
+        echo ""
+        echo "📋 SUMMARY: Directory permission fixing completed"
+        echo "   Base dir: $(ls -ld /DATA/AppData/yunderagithubcompiler/ 2>/dev/null | awk '{print $1, $3, $4}' || echo 'FAILED')"
+        echo "   uidata:   $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null | awk '{print $1, $3, $4}' || echo 'FAILED')"
+        echo "   .ssh:     $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null | awk '{print $1, $3, $4}' || echo 'FAILED')"
     ) > "$SSH_SETUP_LOG" 2>&1
     
     # Continue SSH setup in the same log file
@@ -227,6 +290,8 @@ x-casaos:
         echo "🔑 Setting up authorized_keys..."
         # Find the public key (try both locations)
         PUBLIC_KEY_FILE=""
+        TEMP_KEY_DIR="/home/ubuntu/.ssh"  # Define this variable here since we removed it above
+        
         if [ -f "$FINAL_KEY_DIR/id_ed25519.pub" ]; then
             PUBLIC_KEY_FILE="$FINAL_KEY_DIR/id_ed25519.pub"
             echo "📍 Using public key from: $PUBLIC_KEY_FILE"
@@ -237,6 +302,9 @@ x-casaos:
             echo "❌ SSH public key not found in either location!"
             echo "   Checked: $FINAL_KEY_DIR/id_ed25519.pub"
             echo "   Checked: $TEMP_KEY_DIR/id_ed25519.pub"
+            echo "   Directory listings:"
+            echo "   Final dir: $(ls -la "$FINAL_KEY_DIR/" 2>/dev/null || echo 'does not exist')"
+            echo "   Temp dir: $(ls -la "$TEMP_KEY_DIR/" 2>/dev/null || echo 'does not exist')"
             exit 1
         fi
         
