@@ -172,9 +172,12 @@ x-casaos:
     (
         echo ""
         echo "🔐 Checking for existing SSH keys..."
-        if [ ! -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" ]; then
-            echo "🔐 Generating SSH key pair..."
-            echo "   Command: ssh-keygen -t ed25519 -f /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519 -N '' -C yundera-compiler@container"
+        TEMP_KEY_DIR="/home/ubuntu/.ssh"
+        FINAL_KEY_DIR="/DATA/AppData/yunderagithubcompiler/uidata/.ssh"
+        
+        if [ ! -f "$FINAL_KEY_DIR/id_ed25519" ]; then
+            echo "🔐 Generating SSH key pair in ubuntu home directory first..."
+            echo "   Working around /DATA/AppData permission restrictions"
             
             # Check if ssh-keygen exists
             if ! command -v ssh-keygen >/dev/null 2>&1; then
@@ -184,61 +187,82 @@ x-casaos:
                 exit 1
             fi
             
-            # Generate SSH key in container data directory
-            if ssh-keygen -t ed25519 -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" -N "" -C "yundera-compiler@container"; then
-                echo "✅ SSH key generation successful"
+            # Generate SSH key in ubuntu's home directory (we have write access there)
+            if ssh-keygen -t ed25519 -f "$TEMP_KEY_DIR/yundera_temp_key" -N "" -C "yundera-compiler@container"; then
+                echo "✅ SSH key generation successful in home directory"
                 
-                # Set proper permissions - user can view/manage, but keys are protected
-                chmod 600 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519 || echo "❌ Failed to chmod private key"
-                chmod 644 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub || echo "❌ Failed to chmod public key"
-                
-                echo "✅ SSH key permissions set"
+                # Now try to copy to final location (container will access it there)
+                echo "📋 Copying keys to container data directory..."
+                if cp "$TEMP_KEY_DIR/yundera_temp_key" "$FINAL_KEY_DIR/id_ed25519" 2>/dev/null && 
+                   cp "$TEMP_KEY_DIR/yundera_temp_key.pub" "$FINAL_KEY_DIR/id_ed25519.pub" 2>/dev/null; then
+                    echo "✅ Keys copied to final location successfully"
+                    
+                    # Clean up temp keys
+                    rm -f "$TEMP_KEY_DIR/yundera_temp_key" "$TEMP_KEY_DIR/yundera_temp_key.pub"
+                    echo "🧹 Cleaned up temporary keys"
+                    
+                    # Try to set permissions on final location (may fail but non-critical)
+                    chmod 600 "$FINAL_KEY_DIR/id_ed25519" 2>/dev/null && echo "✅ Set private key permissions" || echo "⚠️ Could not set private key permissions"
+                    chmod 644 "$FINAL_KEY_DIR/id_ed25519.pub" 2>/dev/null && echo "✅ Set public key permissions" || echo "⚠️ Could not set public key permissions"
+                else
+                    echo "⚠️ Could not copy to final location, will use keys from home directory"
+                    # Use the keys from home directory instead
+                    mv "$TEMP_KEY_DIR/yundera_temp_key" "$TEMP_KEY_DIR/id_ed25519"
+                    mv "$TEMP_KEY_DIR/yundera_temp_key.pub" "$TEMP_KEY_DIR/id_ed25519.pub"
+                    echo "📍 Keys will be accessed from: $TEMP_KEY_DIR"
+                fi
             else
-                echo "❌ SSH key generation failed!"
+                echo "❌ SSH key generation failed even in home directory!"
                 exit 1
             fi
         else
-            echo "✅ SSH key pair already exists"
+            echo "✅ SSH key pair already exists in final location"
         fi
         
         echo ""
         echo "🔑 Setting up authorized_keys..."
-        # Add public key to ubuntu user's authorized_keys (this user has access to home directory)
-        if [ -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub" ]; then
-            PUBLIC_KEY=$(cat /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub)
-            echo "🔑 Public key content: $PUBLIC_KEY"
-            echo "   Key length: ${#PUBLIC_KEY} characters"
-            
-            # Ensure authorized_keys exists and add key if not already present
-            touch /home/ubuntu/.ssh/authorized_keys || { echo "❌ Failed to create authorized_keys"; exit 1; }
-            
-            if ! grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
-                echo "$PUBLIC_KEY" >> /home/ubuntu/.ssh/authorized_keys || { echo "❌ Failed to add key to authorized_keys"; exit 1; }
-                echo "✅ SSH public key added to ubuntu@host authorized_keys"
-            else
-                echo "✅ SSH public key already in ubuntu@host authorized_keys"
-            fi
-            
-            # Set proper permissions for SSH files
-            chmod 600 /home/ubuntu/.ssh/authorized_keys || echo "❌ Failed to chmod authorized_keys"
-            
-            # Verify the key was added
-            if grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys; then
-                echo "✅ Verification: Key found in authorized_keys"
-                echo "   authorized_keys file size: $(wc -l /home/ubuntu/.ssh/authorized_keys | awk '{print $1}') lines"
-            else
-                echo "❌ Verification failed: Key not found in authorized_keys"
-                exit 1
-            fi
-            
-            echo "🔑 SSH setup completed - apps can now SSH to ubuntu@host"
+        # Find the public key (try both locations)
+        PUBLIC_KEY_FILE=""
+        if [ -f "$FINAL_KEY_DIR/id_ed25519.pub" ]; then
+            PUBLIC_KEY_FILE="$FINAL_KEY_DIR/id_ed25519.pub"
+            echo "📍 Using public key from: $PUBLIC_KEY_FILE"
+        elif [ -f "$TEMP_KEY_DIR/id_ed25519.pub" ]; then
+            PUBLIC_KEY_FILE="$TEMP_KEY_DIR/id_ed25519.pub"
+            echo "📍 Using public key from: $PUBLIC_KEY_FILE"
         else
-            echo "❌ SSH public key not found after generation"
-            echo "   Expected location: /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub"
-            echo "   Directory listing:"
-            ls -la /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null || echo "   Directory does not exist"
+            echo "❌ SSH public key not found in either location!"
+            echo "   Checked: $FINAL_KEY_DIR/id_ed25519.pub"
+            echo "   Checked: $TEMP_KEY_DIR/id_ed25519.pub"
             exit 1
         fi
+        
+        PUBLIC_KEY=$(cat "$PUBLIC_KEY_FILE")
+        echo "🔑 Public key content: $PUBLIC_KEY"
+        echo "   Key length: ${#PUBLIC_KEY} characters"
+        
+        # Ensure authorized_keys exists and add key if not already present
+        touch /home/ubuntu/.ssh/authorized_keys || { echo "❌ Failed to create authorized_keys"; exit 1; }
+        
+        if ! grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
+            echo "$PUBLIC_KEY" >> /home/ubuntu/.ssh/authorized_keys || { echo "❌ Failed to add key to authorized_keys"; exit 1; }
+            echo "✅ SSH public key added to ubuntu@host authorized_keys"
+        else
+            echo "✅ SSH public key already in ubuntu@host authorized_keys"
+        fi
+        
+        # Set proper permissions for SSH files
+        chmod 600 /home/ubuntu/.ssh/authorized_keys || echo "❌ Failed to chmod authorized_keys"
+        
+        # Verify the key was added
+        if grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys; then
+            echo "✅ Verification: Key found in authorized_keys"
+            echo "   authorized_keys file size: $(wc -l /home/ubuntu/.ssh/authorized_keys | awk '{print $1}') lines"
+        else
+            echo "❌ Verification failed: Key not found in authorized_keys"
+            exit 1
+        fi
+        
+        echo "🔑 SSH setup completed - apps can now SSH to ubuntu@host"
         
         echo ""
         echo "=== SSH Setup Completed Successfully at $(date) ==="
