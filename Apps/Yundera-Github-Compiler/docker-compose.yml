@@ -145,64 +145,30 @@ x-casaos:
         echo "Working directory: $(pwd)"
         echo ""
         
-        echo "📁 Creating directories and fixing permissions..."
+        echo "📁 Creating directories and fixing permissions (chmod only)..."
         
-        # Create the directory structure step by step, fixing permissions as we go
-        echo "🔨 Creating /DATA/AppData/yunderagithubcompiler/"
-        mkdir -p /DATA/AppData/yunderagithubcompiler/
-        
-        # CRITICAL: Fix ownership and permissions on each level
-        echo "👤 Setting ownership on base directory..."
-        if chown $PUID:$PGID /DATA/AppData/yunderagithubcompiler/ 2>/dev/null; then
-            echo "✅ Ownership set to $PUID:$PGID on base directory"
-        else
-            echo "⚠️ Could not set ownership on base directory, trying to fix permissions anyway"
-        fi
-        
-        echo "🔒 Setting permissions on base directory..."
-        chmod 755 /DATA/AppData/yunderagithubcompiler/ || echo "⚠️ Could not set permissions on base directory"
-        
-        echo "🔨 Creating uidata subdirectory..."
-        mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/
-        
-        echo "👤 Setting ownership on uidata directory..."
-        if chown $PUID:$PGID /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null; then
-            echo "✅ Ownership set to $PUID:$PGID on uidata directory"
-        else
-            echo "⚠️ Could not set ownership on uidata directory"
-        fi
-        
-        echo "🔒 Setting permissions on uidata directory..."
-        chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/ || echo "⚠️ Could not set permissions on uidata directory"
-        
-        echo "🔨 Creating .ssh subdirectory..."
+        # Create the entire directory structure at once
+        echo "🔨 Creating directory structure..."
         mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh/
-        
-        echo "👤 Setting ownership on .ssh directory..."
-        if chown $PUID:$PGID /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null; then
-            echo "✅ Ownership set to $PUID:$PGID on .ssh directory"
-        else
-            echo "⚠️ Could not set ownership on .ssh directory"
-        fi
-        
-        echo "🔒 Setting permissions on .ssh directory..."
-        chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ || echo "⚠️ Could not set permissions on .ssh directory"
-        
-        # Create ubuntu SSH directory too
         mkdir -p /home/ubuntu/.ssh
-        chmod 700 /home/ubuntu/.ssh || echo "⚠️ Could not set permissions on ubuntu SSH dir"
         
-        echo "✅ Directory structure created with user-accessible permissions"
+        # Fix permissions with chmod only (no ownership changes needed)
+        echo "🔒 Setting permissions with chmod..."
+        chmod 755 /DATA/AppData/yunderagithubcompiler/ 2>/dev/null && echo "✅ Base directory permissions set" || echo "⚠️ Could not chmod base directory"
+        chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null && echo "✅ uidata directory permissions set" || echo "⚠️ Could not chmod uidata directory"  
+        chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null && echo "✅ .ssh directory permissions set" || echo "⚠️ Could not chmod .ssh directory"
+        chmod 700 /home/ubuntu/.ssh 2>/dev/null && echo "✅ Ubuntu SSH directory permissions set" || echo "⚠️ Could not chmod ubuntu SSH directory"
         
-        # Test if we can now write to the directory
+        echo "✅ Directory structure created"
+        
+        # Test write access
         echo "🧪 Testing write access to uidata directory..."
         if touch /DATA/AppData/yunderagithubcompiler/uidata/.test_write 2>/dev/null; then
             rm -f /DATA/AppData/yunderagithubcompiler/uidata/.test_write
-            echo "✅ Write access confirmed - permissions fixed!"
+            echo "✅ Write access confirmed - permissions are working!"
         else
             echo "❌ Still cannot write to uidata directory"
-            echo "   Current directory ownership: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/ || echo 'cannot read')"
-            echo "   Current user: $(whoami) ($(id))"
+            echo "   Directory listing: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null || echo 'cannot read')"
         fi
     ) > "$SSH_SETUP_LOG" 2>&1
     
@@ -228,8 +194,7 @@ x-casaos:
             if ssh-keygen -t ed25519 -f "$FINAL_KEY_DIR/id_ed25519" -N "" -C "yundera-compiler@container"; then
                 echo "✅ SSH key generation successful in target directory"
                 
-                # Set proper permissions on the generated keys
-                chown $PUID:$PGID "$FINAL_KEY_DIR/id_ed25519" "$FINAL_KEY_DIR/id_ed25519.pub" 2>/dev/null || echo "⚠️ Could not set ownership on SSH keys"
+                # Set proper permissions on the generated keys (chmod only)
                 chmod 600 "$FINAL_KEY_DIR/id_ed25519" && echo "✅ Set private key permissions (600)" || echo "⚠️ Could not set private key permissions"
                 chmod 644 "$FINAL_KEY_DIR/id_ed25519.pub" && echo "✅ Set public key permissions (644)" || echo "⚠️ Could not set public key permissions"
                 
@@ -238,12 +203,16 @@ x-casaos:
                 ls -la "$FINAL_KEY_DIR/" || echo "Cannot list SSH directory"
             else
                 echo "❌ SSH key generation failed in target directory!"
-                echo "   This means the permission fix didn't work"
                 echo "   Falling back to home directory generation..."
                 
-                # Fallback: generate in home directory
+                # Fallback: generate in home directory (remove existing keys first to avoid prompt)
+                echo "🧹 Removing any existing SSH keys in home directory..."
+                rm -f /home/ubuntu/.ssh/id_ed25519 /home/ubuntu/.ssh/id_ed25519.pub
+                
                 if ssh-keygen -t ed25519 -f "/home/ubuntu/.ssh/id_ed25519" -N "" -C "yundera-compiler@container"; then
                     echo "✅ SSH key generation successful in home directory fallback"
+                    chmod 600 /home/ubuntu/.ssh/id_ed25519 && echo "✅ Set private key permissions in home"
+                    chmod 644 /home/ubuntu/.ssh/id_ed25519.pub && echo "✅ Set public key permissions in home"
                     echo "⚠️ Keys are in /home/ubuntu/.ssh/ instead of preferred location"
                 else
                     echo "❌ SSH key generation failed even in home directory!"
