@@ -263,8 +263,15 @@ x-casaos:
         fi
         
         # Also create ubuntu SSH directory for fallback
-        mkdir -p /home/ubuntu/.ssh
-        chmod 700 /home/ubuntu/.ssh 2>/dev/null && echo "✅ Ubuntu SSH directory ready as fallback" || echo "⚠️ Could not set ubuntu SSH permissions"
+        if mkdir -p /home/ubuntu/.ssh 2>/dev/null; then
+            if chmod 700 /home/ubuntu/.ssh 2>/dev/null; then
+                echo "✅ Ubuntu SSH directory ready as fallback"
+            else
+                echo "⚠️ Could not set ubuntu SSH permissions"
+            fi
+        else
+            echo "⚠️ Could not create ubuntu SSH directory"
+        fi
         
         echo ""
         echo "📋 SUMMARY: Directory permission fixing completed"
