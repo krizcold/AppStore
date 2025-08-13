@@ -133,61 +133,118 @@ x-casaos:
     echo "🚀 Yundera GitHub Compiler pre-install starting..."
     
     # Setup SSH access for pre-install commands with PROPER USER PERMISSIONS
-    echo "🔧 Setting up SSH access with user-manageable permissions..."
+    # Log everything to help debug failures
+    SSH_SETUP_LOG="/tmp/yundera-ssh-setup-$(date +%Y%m%d-%H%M%S).log"
+    echo "🔧 Setting up SSH access with user-manageable permissions (logging to $SSH_SETUP_LOG)..."
     
-    # Ensure base directories exist with proper permissions for user access
-    mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh
-    mkdir -p /home/ubuntu/.ssh
-    
-    # Set proper permissions - user must be able to manage these files!
-    chmod 755 /DATA/AppData/yunderagithubcompiler                    # User can browse
-    chmod 755 /DATA/AppData/yunderagithubcompiler/uidata            # User can browse  
-    chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/.ssh       # User can browse
-    chmod 700 /home/ubuntu/.ssh                                     # SSH standard
-    
-    # Set proper ownership if possible (non-critical if fails)
-    chown -R $PUID:$PGID /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || echo "⚠️ Could not set ownership (non-critical)"
-    
-    # Generate SSH key pair if it doesn't exist
-    if [ ! -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" ]; then
-        echo "🔐 Generating SSH key pair..."
+    (
+        echo "=== SSH Setup Started at $(date) ==="
+        echo "Host: $(hostname)"
+        echo "User: $(whoami)"
+        echo "UID/GID: $(id)"
+        echo "Working directory: $(pwd)"
+        echo ""
         
-        # Generate SSH key in container data directory
-        ssh-keygen -t ed25519 -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" -N "" -C "yundera-compiler@container"
+        echo "📁 Creating directories..."
+        # Ensure base directories exist with proper permissions for user access
+        mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh || { echo "❌ Failed to create container SSH dir"; exit 1; }
+        mkdir -p /home/ubuntu/.ssh || { echo "❌ Failed to create ubuntu SSH dir"; exit 1; }
+        echo "✅ Directories created"
         
-        # Set proper permissions - user can view/manage, but keys are protected
-        chmod 600 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519     # Private key (owner only)
-        chmod 644 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub # Public key (readable)
+        echo "🔒 Setting permissions..."
+        # Set proper permissions - user must be able to manage these files!
+        chmod 755 /DATA/AppData/yunderagithubcompiler || { echo "❌ Failed chmod on base dir"; exit 1; }
+        chmod 755 /DATA/AppData/yunderagithubcompiler/uidata || { echo "❌ Failed chmod on uidata dir"; exit 1; }
+        chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/.ssh || { echo "❌ Failed chmod on container SSH dir"; exit 1; }
+        chmod 700 /home/ubuntu/.ssh || { echo "❌ Failed chmod on ubuntu SSH dir"; exit 1; }
+        echo "✅ Permissions set"
         
-        echo "✅ SSH key pair generated with user-manageable permissions"
-    else
-        echo "✅ SSH key pair already exists"
-    fi
-    
-    # Add public key to ubuntu user's authorized_keys (this user has access to home directory)
-    if [ -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub" ]; then
-        PUBLIC_KEY=$(cat /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub)
-        echo "🔑 Adding public key to ubuntu user authorized_keys..."
-        
-        # Ensure authorized_keys exists and add key if not already present
-        touch /home/ubuntu/.ssh/authorized_keys
-        if ! grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
-            echo "$PUBLIC_KEY" >> /home/ubuntu/.ssh/authorized_keys
-            echo "✅ SSH public key added to ubuntu@host"
+        echo "👤 Setting ownership..."
+        # Set proper ownership if possible (non-critical if fails)
+        if chown -R $PUID:$PGID /DATA/AppData/yunderagithubcompiler/ 2>/dev/null; then
+            echo "✅ Ownership set to $PUID:$PGID"
         else
-            echo "✅ SSH public key already in ubuntu@host authorized_keys"
+            echo "⚠️ Could not set ownership (non-critical)"
+        fi
+    ) > "$SSH_SETUP_LOG" 2>&1
+    
+    # Continue SSH setup in the same log file
+    (
+        echo ""
+        echo "🔐 Checking for existing SSH keys..."
+        if [ ! -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" ]; then
+            echo "🔐 Generating SSH key pair..."
+            echo "   Command: ssh-keygen -t ed25519 -f /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519 -N '' -C yundera-compiler@container"
+            
+            # Check if ssh-keygen exists
+            if ! command -v ssh-keygen >/dev/null 2>&1; then
+                echo "❌ ssh-keygen not found!"
+                echo "Available commands in PATH:"
+                echo "$PATH" | tr ':' '\n' | while read dir; do ls "$dir"/ssh* 2>/dev/null | head -5; done
+                exit 1
+            fi
+            
+            # Generate SSH key in container data directory
+            if ssh-keygen -t ed25519 -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519" -N "" -C "yundera-compiler@container"; then
+                echo "✅ SSH key generation successful"
+                
+                # Set proper permissions - user can view/manage, but keys are protected
+                chmod 600 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519 || echo "❌ Failed to chmod private key"
+                chmod 644 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub || echo "❌ Failed to chmod public key"
+                
+                echo "✅ SSH key permissions set"
+            else
+                echo "❌ SSH key generation failed!"
+                exit 1
+            fi
+        else
+            echo "✅ SSH key pair already exists"
         fi
         
-        # Set proper permissions for SSH files
-        chmod 600 /home/ubuntu/.ssh/authorized_keys
+        echo ""
+        echo "🔑 Setting up authorized_keys..."
+        # Add public key to ubuntu user's authorized_keys (this user has access to home directory)
+        if [ -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub" ]; then
+            PUBLIC_KEY=$(cat /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub)
+            echo "🔑 Public key content: $PUBLIC_KEY"
+            echo "   Key length: ${#PUBLIC_KEY} characters"
+            
+            # Ensure authorized_keys exists and add key if not already present
+            touch /home/ubuntu/.ssh/authorized_keys || { echo "❌ Failed to create authorized_keys"; exit 1; }
+            
+            if ! grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
+                echo "$PUBLIC_KEY" >> /home/ubuntu/.ssh/authorized_keys || { echo "❌ Failed to add key to authorized_keys"; exit 1; }
+                echo "✅ SSH public key added to ubuntu@host authorized_keys"
+            else
+                echo "✅ SSH public key already in ubuntu@host authorized_keys"
+            fi
+            
+            # Set proper permissions for SSH files
+            chmod 600 /home/ubuntu/.ssh/authorized_keys || echo "❌ Failed to chmod authorized_keys"
+            
+            # Verify the key was added
+            if grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys; then
+                echo "✅ Verification: Key found in authorized_keys"
+                echo "   authorized_keys file size: $(wc -l /home/ubuntu/.ssh/authorized_keys | awk '{print $1}') lines"
+            else
+                echo "❌ Verification failed: Key not found in authorized_keys"
+                exit 1
+            fi
+            
+            echo "🔑 SSH setup completed - apps can now SSH to ubuntu@host"
+        else
+            echo "❌ SSH public key not found after generation"
+            echo "   Expected location: /DATA/AppData/yunderagithubcompiler/uidata/.ssh/id_ed25519.pub"
+            echo "   Directory listing:"
+            ls -la /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null || echo "   Directory does not exist"
+            exit 1
+        fi
         
-        echo "🔑 SSH setup completed - apps can now SSH to ubuntu@host"
-        echo "📋 Public key: $PUBLIC_KEY"
-    else
-        echo "❌ SSH public key not found after generation"
-    fi
+        echo ""
+        echo "=== SSH Setup Completed Successfully at $(date) ==="
+    ) >> "$SSH_SETUP_LOG" 2>&1
     
-    echo "✅ SSH setup completed with user-manageable file permissions"
+    echo "✅ SSH setup completed with user-manageable file permissions (check $SSH_SETUP_LOG for details)"
     
     # Create a simplified watcher that waits for compose file and fixes docker.sock
     # We use `EOF` without quotes to allow the parent shell to expand ${AUTH_HASH} into the script's text.
