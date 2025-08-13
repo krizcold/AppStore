@@ -289,8 +289,8 @@ x-casaos:
                 echo "Available commands in PATH:"
                 echo "$PATH" | tr ':' '\n' | while read dir; do ls "$dir"/ssh* 2>/dev/null | head -5; done
                 echo "⚠️ SSH functionality will not be available, but installation will continue"
-                return 0
-            fi
+                echo "🔚 Skipping remaining SSH setup steps"
+            else
             
             # Generate SSH key directly in the target directory
             if ssh-keygen -t ed25519 -f "$FINAL_KEY_DIR/id_ed25519" -N "" -C "yundera-compiler@container"; then
@@ -319,9 +319,9 @@ x-casaos:
                 else
                     echo "❌ SSH key generation failed even in home directory!"
                     echo "⚠️ SSH functionality will not be available, but installation will continue"
-                    return 0
                 fi
             fi
+            fi  # Close the ssh-keygen check
         else
             echo "✅ SSH key pair already exists in target directory"
         fi
@@ -346,40 +346,43 @@ x-casaos:
             echo "   Final dir: $(ls -la "$FINAL_KEY_DIR/" 2>/dev/null || echo 'does not exist')"
             echo "   Temp dir: $(ls -la "$TEMP_KEY_DIR/" 2>/dev/null || echo 'does not exist')"
             echo "⚠️ SSH functionality will not be available, but installation will continue"
-            return 0
+            PUBLIC_KEY_FILE=""  # Set empty to skip authorized_keys setup
         fi
         
-        PUBLIC_KEY=$(cat "$PUBLIC_KEY_FILE")
-        echo "🔑 Public key content: $PUBLIC_KEY"
-        echo "   Key length: ${#PUBLIC_KEY} characters"
-        
-        # Ensure authorized_keys exists and add key if not already present
-        if ! touch /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
-            echo "❌ Failed to create authorized_keys - SSH setup incomplete but installation will continue"
-            return 0
-        fi
-        
-        if ! grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
-            if ! echo "$PUBLIC_KEY" >> /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
-                echo "❌ Failed to add key to authorized_keys - SSH setup incomplete but installation will continue"
-                return 0
+        # Only proceed with authorized_keys setup if we have a public key file
+        if [ -n "$PUBLIC_KEY_FILE" ] && [ -f "$PUBLIC_KEY_FILE" ]; then
+            PUBLIC_KEY=$(cat "$PUBLIC_KEY_FILE")
+            echo "🔑 Public key content: $PUBLIC_KEY"
+            echo "   Key length: ${#PUBLIC_KEY} characters"
+            
+            # Ensure authorized_keys exists and add key if not already present
+            if ! touch /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
+                echo "❌ Failed to create authorized_keys - SSH setup incomplete but installation will continue"
+            else
+                if ! grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
+                    if ! echo "$PUBLIC_KEY" >> /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
+                        echo "❌ Failed to add key to authorized_keys - SSH setup incomplete but installation will continue"
+                    else
+                        echo "✅ SSH public key added to ubuntu@host authorized_keys"
+                    fi
+                else
+                    echo "✅ SSH public key already in ubuntu@host authorized_keys"
+                fi
+                
+                # Set proper permissions for SSH files
+                chmod 600 /home/ubuntu/.ssh/authorized_keys || echo "❌ Failed to chmod authorized_keys"
+                
+                # Verify the key was added
+                if grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys; then
+                    echo "✅ Verification: Key found in authorized_keys"
+                    echo "   authorized_keys file size: $(wc -l /home/ubuntu/.ssh/authorized_keys | awk '{print $1}') lines"
+                else
+                    echo "❌ Verification failed: Key not found in authorized_keys"
+                    echo "⚠️ SSH setup incomplete but installation will continue"
+                fi
             fi
-            echo "✅ SSH public key added to ubuntu@host authorized_keys"
         else
-            echo "✅ SSH public key already in ubuntu@host authorized_keys"
-        fi
-        
-        # Set proper permissions for SSH files
-        chmod 600 /home/ubuntu/.ssh/authorized_keys || echo "❌ Failed to chmod authorized_keys"
-        
-        # Verify the key was added
-        if grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys; then
-            echo "✅ Verification: Key found in authorized_keys"
-            echo "   authorized_keys file size: $(wc -l /home/ubuntu/.ssh/authorized_keys | awk '{print $1}') lines"
-        else
-            echo "❌ Verification failed: Key not found in authorized_keys"
-            echo "⚠️ SSH setup incomplete but installation will continue"
-            return 0
+            echo "⚠️ No valid SSH public key available - skipping authorized_keys setup"
         fi
         
         echo "🔑 SSH setup completed - apps can now SSH to ubuntu@host"
