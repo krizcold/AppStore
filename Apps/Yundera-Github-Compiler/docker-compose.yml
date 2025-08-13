@@ -145,74 +145,112 @@ x-casaos:
         echo "Working directory: $(pwd)"
         echo ""
         
-        echo "📁 Step-by-step directory creation and permission fixing..."
+        echo "📁 Fresh PCS installation - creating directory structure with proper permissions..."
         
-        # Step 1: Create and fix yunderagithubcompiler directory
-        echo ""
-        echo "🔨 STEP 1: Creating and fixing yunderagithubcompiler directory..."
-        mkdir -p /DATA/AppData/yunderagithubcompiler/
-        echo "   Directory created: $(ls -ld /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || echo 'FAILED')"
-        
-        if chmod 755 /DATA/AppData/yunderagithubcompiler/ 2>/dev/null; then
-            echo "✅ yunderagithubcompiler directory permissions set to 755"
-        else
-            echo "❌ Cannot set permissions on yunderagithubcompiler directory"
-            echo "   Current permissions: $(ls -ld /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || echo 'cannot read')"
+        # Check if this is truly a fresh installation
+        if [ -d "/DATA/AppData/yunderagithubcompiler" ]; then
+            echo "⚠️ WARNING: yunderagithubcompiler directory already exists - checking ownership..."
+            echo "   Existing: $(ls -ld /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || echo 'cannot read')"
         fi
         
-        # Test write access to yunderagithubcompiler
+        # Step 1: Create yunderagithubcompiler directory with proper ownership from the start
+        echo ""
+        echo "🔨 STEP 1: Creating yunderagithubcompiler directory with careful permissions..."
+        
+        # Create directory and immediately set ownership to prevent root ownership
+        if mkdir -p /DATA/AppData/yunderagithubcompiler/ 2>/dev/null; then
+            echo "   Directory created successfully"
+        else
+            echo "   Directory already exists"
+        fi
+        
+        # Ensure proper ownership (ubuntu user with docker group)
+        if chown ubuntu:988 /DATA/AppData/yunderagithubcompiler/ 2>/dev/null; then
+            echo "✅ Set yunderagithubcompiler ownership to ubuntu:988"
+        else
+            echo "❌ Cannot set yunderagithubcompiler ownership to ubuntu:988"
+        fi
+        
+        # Set permissions
+        if chmod 755 /DATA/AppData/yunderagithubcompiler/ 2>/dev/null; then
+            echo "✅ Set yunderagithubcompiler permissions to 755"
+        else
+            echo "❌ Cannot set yunderagithubcompiler permissions to 755"
+        fi
+        
+        echo "   Final state: $(ls -ld /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || echo 'FAILED')"
+        
+        # Test write access
         if touch /DATA/AppData/yunderagithubcompiler/.test_write 2>/dev/null; then
             rm -f /DATA/AppData/yunderagithubcompiler/.test_write
-            echo "✅ yunderagithubcompiler directory is writable"
+            echo "✅ yunderagithubcompiler directory is writable by ubuntu user"
         else
-            echo "❌ yunderagithubcompiler directory is NOT writable"
-            echo "   Cannot proceed - this directory must be writable first"
+            echo "❌ yunderagithubcompiler directory is NOT writable by ubuntu user"
         fi
         
-        # Step 2: Create and fix uidata directory
+        # Step 2: Create uidata directory with proper ownership from the start
         echo ""
-        echo "🔨 STEP 2: Creating and fixing uidata directory..."
-        mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/
-        echo "   Directory created: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null || echo 'FAILED')"
+        echo "🔨 STEP 2: Creating uidata directory with careful permissions..."
         
-        if chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null; then
-            echo "✅ uidata directory permissions set to 755"
+        # Create uidata and immediately set proper ownership
+        if mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null; then
+            echo "   uidata directory created successfully"
         else
-            echo "❌ Cannot set permissions on uidata directory"
-            echo "   Current permissions: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null || echo 'cannot read')"
+            echo "   uidata directory already exists"
         fi
+        
+        # Set ownership immediately after creation
+        if chown ubuntu:988 /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null; then
+            echo "✅ Set uidata ownership to ubuntu:988"
+        else
+            echo "❌ Cannot set uidata ownership to ubuntu:988"
+        fi
+        
+        # Set permissions
+        if chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null; then
+            echo "✅ Set uidata permissions to 755"
+        else
+            echo "❌ Cannot set uidata permissions to 755"
+        fi
+        
+        echo "   Final state: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null || echo 'FAILED')"
         
         # Test write access to uidata
         if touch /DATA/AppData/yunderagithubcompiler/uidata/.test_write 2>/dev/null; then
             rm -f /DATA/AppData/yunderagithubcompiler/uidata/.test_write
-            echo "✅ uidata directory is writable"
+            echo "✅ uidata directory is writable by ubuntu user"
         else
-            echo "❌ uidata directory is NOT writable"
-            echo "   Cannot proceed - uidata must be writable for SSH keys"
+            echo "❌ uidata directory is NOT writable by ubuntu user"
         fi
         
-        # Step 3: Create and fix .ssh directory
+        # Step 3: Create .ssh directory with EXTRA CARE for permissions
         echo ""
-        echo "🔨 STEP 3: Creating and fixing .ssh directory..."
-        mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh/
-        echo "   Directory created: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null || echo 'FAILED')"
+        echo "🔨 STEP 3: Creating .ssh directory with EXTRA CAREFUL permissions..."
         
-        # Try multiple permission approaches for .ssh
-        if chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null; then
-            echo "✅ .ssh directory permissions set to 755"
-        elif chmod 777 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null; then
-            echo "✅ .ssh directory permissions set to 777 (fallback)"
+        # This is the critical step - .ssh directory must be owned by ubuntu, not root
+        if mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null; then
+            echo "   .ssh directory created successfully"
         else
-            echo "❌ Cannot set permissions on .ssh directory - trying recreation..."
-            rmdir /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null
-            mkdir /DATA/AppData/yunderagithubcompiler/uidata/.ssh/
-            if chmod 777 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null; then
-                echo "✅ Recreated .ssh directory with 777 permissions"
-            else
-                echo "❌ Still cannot set permissions on .ssh directory"
-                echo "   Current permissions: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null || echo 'cannot read')"
-            fi
+            echo "   .ssh directory already exists"
         fi
+        
+        # IMMEDIATELY set ownership to prevent any root ownership issues
+        echo "   Setting ownership IMMEDIATELY after creation..."
+        if chown ubuntu:988 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null; then
+            echo "✅ Set .ssh ownership to ubuntu:988 IMMEDIATELY"
+        else
+            echo "❌ Cannot set .ssh ownership to ubuntu:988 - this is the problem!"
+            echo "   Current ownership: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null | awk '{print $3":"$4}' || echo 'unknown')"
+        fi
+        
+        # Set proper permissions for .ssh directory (755 for directory access)
+        if chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null; then
+            echo "✅ Set .ssh permissions to 755"
+        else
+            echo "❌ Cannot set .ssh permissions to 755"
+        fi
+        
+        echo "   Final state: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null || echo 'FAILED')"
         
         # Test write access to .ssh
         if touch /DATA/AppData/yunderagithubcompiler/uidata/.ssh/.test_write 2>/dev/null; then
@@ -247,10 +285,11 @@ x-casaos:
             
             # Check if ssh-keygen exists
             if ! command -v ssh-keygen >/dev/null 2>&1; then
-                echo "❌ ssh-keygen not found!"
+                echo "❌ ssh-keygen not found - SSH setup will be skipped"
                 echo "Available commands in PATH:"
                 echo "$PATH" | tr ':' '\n' | while read dir; do ls "$dir"/ssh* 2>/dev/null | head -5; done
-                exit 1
+                echo "⚠️ SSH functionality will not be available, but installation will continue"
+                return 0
             fi
             
             # Generate SSH key directly in the target directory
@@ -279,7 +318,8 @@ x-casaos:
                     echo "⚠️ Keys are in /home/ubuntu/.ssh/ instead of preferred location"
                 else
                     echo "❌ SSH key generation failed even in home directory!"
-                    exit 1
+                    echo "⚠️ SSH functionality will not be available, but installation will continue"
+                    return 0
                 fi
             fi
         else
@@ -305,7 +345,8 @@ x-casaos:
             echo "   Directory listings:"
             echo "   Final dir: $(ls -la "$FINAL_KEY_DIR/" 2>/dev/null || echo 'does not exist')"
             echo "   Temp dir: $(ls -la "$TEMP_KEY_DIR/" 2>/dev/null || echo 'does not exist')"
-            exit 1
+            echo "⚠️ SSH functionality will not be available, but installation will continue"
+            return 0
         fi
         
         PUBLIC_KEY=$(cat "$PUBLIC_KEY_FILE")
@@ -313,10 +354,16 @@ x-casaos:
         echo "   Key length: ${#PUBLIC_KEY} characters"
         
         # Ensure authorized_keys exists and add key if not already present
-        touch /home/ubuntu/.ssh/authorized_keys || { echo "❌ Failed to create authorized_keys"; exit 1; }
+        if ! touch /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
+            echo "❌ Failed to create authorized_keys - SSH setup incomplete but installation will continue"
+            return 0
+        fi
         
         if ! grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
-            echo "$PUBLIC_KEY" >> /home/ubuntu/.ssh/authorized_keys || { echo "❌ Failed to add key to authorized_keys"; exit 1; }
+            if ! echo "$PUBLIC_KEY" >> /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
+                echo "❌ Failed to add key to authorized_keys - SSH setup incomplete but installation will continue"
+                return 0
+            fi
             echo "✅ SSH public key added to ubuntu@host authorized_keys"
         else
             echo "✅ SSH public key already in ubuntu@host authorized_keys"
@@ -331,7 +378,8 @@ x-casaos:
             echo "   authorized_keys file size: $(wc -l /home/ubuntu/.ssh/authorized_keys | awk '{print $1}') lines"
         else
             echo "❌ Verification failed: Key not found in authorized_keys"
-            exit 1
+            echo "⚠️ SSH setup incomplete but installation will continue"
+            return 0
         fi
         
         echo "🔑 SSH setup completed - apps can now SSH to ubuntu@host"
