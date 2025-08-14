@@ -127,208 +127,127 @@ x-casaos:
   index: /
   webui_port: 3000
   pre-install-cmd: |
-    # Generate the hash value that will be embedded into the background script.
+    # SSH DIAGNOSTIC AND TESTING MODE
+    echo "🔬 SSH DIAGNOSTIC MODE - Testing CasaOS SSH Configuration"
+    echo "=================================================="
+    
+    # Generate the hash value for later use
     if command -v openssl >/dev/null 2>&1; then
       AUTH_HASH=$(openssl rand -hex 64)
     else
-      # minimal fallback if openssl isn't present
       AUTH_HASH=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n')
     fi
     
-    echo "🚀 Yundera GitHub Compiler pre-install starting..."
-    
-    # Setup SSH access for pre-install commands with PROPER USER PERMISSIONS
-    # Log everything to help debug failures
-    SSH_SETUP_LOG="/tmp/yundera-ssh-setup-$(date +%Y%m%d-%H%M%S).log"
-    echo "🔧 Setting up SSH access with user-manageable permissions (logging to $SSH_SETUP_LOG)..."
+    SSH_DIAG_LOG="/tmp/yundera-ssh-diagnostic-$(date +%Y%m%d-%H%M%S).log"
+    echo "📋 Diagnostic results will be logged to: $SSH_DIAG_LOG"
     
     (
-        set +e  # <<< minimal: don't let best-effort steps abort the whole pre-install
-        echo "=== SSH Setup Started at $(date) ==="
-        echo "Host: $(hostname)"
-        echo "User: $(whoami)"
-        echo "UID/GID: $(id)"
-        echo "Working directory: $(pwd)"
+        set +e  # Don't let diagnostic failures abort the pre-install
+        echo "=== SSH DIAGNOSTICS Started at $(date) ==="
+        echo "🏠 Host Environment Analysis:"
+        echo "   Hostname: $(hostname)"
+        echo "   User: $(whoami)"
+        echo "   UID/GID: $(id)"
+        echo "   Working directory: $(pwd)"
         echo ""
         
-        echo "📁 Fresh PCS installation - creating directory structure with proper permissions..."
-        
-        # Check if this is truly a fresh installation
-        if [ -d "/DATA/AppData/yunderagithubcompiler" ]; then
-            echo "⚠️ WARNING: yunderagithubcompiler directory already exists - checking ownership..."
-            echo "   Existing: $(ls -ld /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || echo 'cannot read')"
-        fi
-        
-        # Step 1: Create yunderagithubcompiler directory with proper ownership from the start
-        echo ""
-        echo "🔨 STEP 1: Creating yunderagithubcompiler directory with careful permissions..."
-        
-        if mkdir -p /DATA/AppData/yunderagithubcompiler/ 2>/dev/null; then
-            echo "   Directory created successfully"
+        echo "🌐 Network Connectivity Test:"
+        # Test basic network connectivity to host
+        HOST_IP="172.18.0.1"
+        if ping -c 1 -W 2 "$HOST_IP" >/dev/null 2>&1; then
+            echo "✅ Can ping host at $HOST_IP"
         else
-            echo "   Directory already exists"
+            echo "❌ Cannot ping host at $HOST_IP"
         fi
-        
-        # Ensure proper ownership (ubuntu user with docker group)
-        chown ubuntu:988 /DATA/AppData/yunderagithubcompiler/ 2>/dev/null && echo "✅ Set yunderagithubcompiler ownership to ubuntu:988" || echo "❌ Cannot set yunderagithubcompiler ownership to ubuntu:988"
-        chmod 755 /DATA/AppData/yunderagithubcompiler/ 2>/dev/null && echo "✅ Set yunderagithubcompiler permissions to 755" || echo "❌ Cannot set yunderagithubcompiler permissions to 755"
-        echo "   Final state: $(ls -ld /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || echo 'FAILED')"
-        
-        # Test write access
-        if touch /DATA/AppData/yunderagithubcompiler/.test_write 2>/dev/null; then
-            rm -f /DATA/AppData/yunderagithubcompiler/.test_write
-            echo "✅ yunderagithubcompiler directory is writable by ubuntu user"
-        else
-            echo "❌ yunderagithubcompiler directory is NOT writable by ubuntu user"
-        fi
-        
-        # Step 2: Create uidata directory with proper ownership from the start
-        echo ""
-        echo "🔨 STEP 2: Creating uidata directory with careful permissions..."
-        
-        if mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null; then
-            echo "   uidata directory created successfully"
-        else
-            echo "   uidata directory already exists"
-        fi
-        
-        chown ubuntu:988 /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null && echo "✅ Set uidata ownership to ubuntu:988" || echo "❌ Cannot set uidata ownership to ubuntu:988"
-        chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null && echo "✅ Set uidata permissions to 755" || echo "❌ Cannot set uidata permissions to 755"
-        echo "   Final state: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null || echo 'FAILED')"
-        
-        # Test write access to uidata
-        if touch /DATA/AppData/yunderagithubcompiler/uidata/.test_write 2>/dev/null; then
-            rm -f /DATA/AppData/yunderagithubcompiler/uidata/.test_write
-            echo "✅ uidata directory is writable by ubuntu user"
-        else
-            echo "❌ uidata directory is NOT writable by ubuntu user"
-        fi
-        
-        # Step 3: Create .ssh directory with EXTRA CARE for permissions
-        echo ""
-        echo "🔨 STEP 3: Creating .ssh directory with EXTRA CAREFUL permissions..."
-        
-        if mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null; then
-            echo "   .ssh directory created successfully"
-        else
-            echo "   .ssh directory already exists"
-        fi
-        
-        echo "   Setting ownership IMMEDIATELY after creation..."
-        chown ubuntu:988 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null && echo "✅ Set .ssh ownership to ubuntu:988 IMMEDIATELY" || echo "❌ Cannot set .ssh ownership to ubuntu:988 - this is the problem!"
-        
-        # (keeping your original 755 here to stay minimal, though 700 is typical)
-        chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null && echo "✅ Set .ssh permissions to 755" || echo "❌ Cannot set .ssh permissions to 755"
-        echo "   Final state: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null || echo 'FAILED')"
-        
-        # Test write access to .ssh
-        if touch /DATA/AppData/yunderagithubcompiler/uidata/.ssh/.test_write 2>/dev/null; then
-            rm -f /DATA/AppData/yunderagithubcompiler/uidata/.ssh/.test_write
-            echo "✅ .ssh directory is writable - SSH key generation should work!"
-        else
-            echo "❌ .ssh directory is NOT writable"
-        fi
-        
-        # Also create ubuntu SSH directory for fallback
-        mkdir -p /home/ubuntu/.ssh
-        chmod 700 /home/ubuntu/.ssh 2>/dev/null && echo "✅ Ubuntu SSH directory ready as fallback" || echo "⚠️ Could not set ubuntu SSH permissions"
         
         echo ""
-        echo "📋 SUMMARY: Directory permission fixing completed"
-        echo "   Base dir: $(ls -ld /DATA/AppData/yunderagithubcompiler/ 2>/dev/null | awk '{print $1, $3, $4}' || echo 'FAILED')"
-        echo "   uidata:   $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null | awk '{print $1, $3, $4}' || echo 'FAILED')"
-        echo "   .ssh:     $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null | awk '{print $1, $3, $4}' || echo 'FAILED')"
-    ) > "$SSH_SETUP_LOG" 2>&1
-    
-    # Continue SSH setup in the same log file
-    (
-        set +e  # <<< minimal: best-effort; we’ll validate writability after this
-        echo ""
-        echo "🔐 Checking for existing SSH keys..."
-        FINAL_KEY_DIR="/DATA/AppData/yunderagithubcompiler/uidata/.ssh"
+        echo "🔍 SSH Service Detection on Host:"
+        # Test if SSH port is open on host
+        if nc -z -w 2 "$HOST_IP" 22 2>/dev/null; then
+            echo "✅ SSH port 22 is open on host $HOST_IP"
+        else
+            echo "❌ SSH port 22 is NOT accessible on host $HOST_IP"
+        fi
         
-        if [ ! -f "$FINAL_KEY_DIR/id_ed25519" ]; then
-            echo "🔐 Generating SSH key pair directly in uidata directory..."
-            echo "   Permissions should now be fixed to allow this"
-            
-            if ! command -v ssh-keygen >/dev/null 2>&1; then
-                echo "❌ ssh-keygen not found - SSH setup will be skipped"
-                echo "Available commands in PATH:"
-                echo "$PATH" | tr ':' '\n' | while read dir; do ls "$dir"/ssh* 2>/dev/null | head -5; done
-                echo "⚠️ SSH functionality will not be available, but installation will continue"
-                echo "🔚 Skipping remaining SSH setup steps"
+        echo ""
+        echo "👤 Host User Detection:"
+        # Test different common users that might exist
+        for user in ubuntu casaos root admin; do
+            echo "   Testing SSH access for user: $user"
+            if timeout 5 ssh -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o PasswordAuthentication=no "$user@$HOST_IP" "echo 'SSH test successful'" 2>/dev/null; then
+                echo "   ✅ SSH works for user: $user (key-based auth available)"
             else
-              if ssh-keygen -t ed25519 -f "$FINAL_KEY_DIR/id_ed25519" -N "" -C "yundera-compiler@container"; then
-                  echo "✅ SSH key generation successful in target directory"
-                  chmod 600 "$FINAL_KEY_DIR/id_ed25519" 2>/dev/null || true
-                  chmod 644 "$FINAL_KEY_DIR/id_ed25519.pub" 2>/dev/null || true
-                  ls -la "$FINAL_KEY_DIR/" || echo "Cannot list SSH directory"
-              else
-                  echo "❌ SSH key generation failed in target directory!"
-                  echo "   Falling back to home directory generation..."
-                  rm -f /home/ubuntu/.ssh/id_ed25519 /home/ubuntu/.ssh/id_ed25519.pub
-                  if ssh-keygen -t ed25519 -f "/home/ubuntu/.ssh/id_ed25519" -N "" -C "yundera-compiler@container"; then
-                      echo "✅ SSH key generation successful in home directory fallback"
-                      chmod 600 /home/ubuntu/.ssh/id_ed25519 2>/dev/null || true
-                      chmod 644 /home/ubuntu/.ssh/id_ed25519.pub 2>/dev/null || true
-                      echo "⚠️ Keys are in /home/ubuntu/.ssh/ instead of preferred location"
-                  else
-                      echo "❌ SSH key generation failed even in home directory!"
-                      echo "⚠️ SSH functionality will not be available, but installation will continue"
-                  fi
-              fi
+                echo "   ❌ SSH failed for user: $user"
             fi
+        done
+        
+        echo ""
+        echo "🔧 SSH Client Tools Check:"
+        command -v ssh >/dev/null && echo "✅ ssh command available" || echo "❌ ssh command NOT available"
+        command -v ssh-keygen >/dev/null && echo "✅ ssh-keygen available" || echo "❌ ssh-keygen NOT available"
+        command -v nc >/dev/null && echo "✅ netcat available" || echo "❌ netcat NOT available"
+        
+        echo ""
+        echo "📁 Directory Structure Test:"
+        # Create our minimal directory structure for testing
+        mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null
+        if [ -d "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/" ]; then
+            echo "✅ Test directory structure created: /DATA/AppData/yunderagithubcompiler/uidata/.ssh/"
         else
-            echo "✅ SSH key pair already exists in target directory"
+            echo "❌ Failed to create test directory structure"
         fi
         
         echo ""
-        echo "🔑 Setting up authorized_keys..."
-        PUBLIC_KEY_FILE=""
-        TEMP_KEY_DIR="/home/ubuntu/.ssh"
-        
-        if [ -f "$FINAL_KEY_DIR/id_ed25519.pub" ]; then
-            PUBLIC_KEY_FILE="$FINAL_KEY_DIR/id_ed25519.pub"
-            echo "📍 Using public key from: $PUBLIC_KEY_FILE"
-        elif [ -f "$TEMP_KEY_DIR/id_ed25519.pub" ]; then
-            PUBLIC_KEY_FILE="$TEMP_KEY_DIR/id_ed25519.pub"
-            echo "📍 Using public key from: $PUBLIC_KEY_FILE"
+        echo "🔑 SSH Key Generation Test:"
+        # Test if we can generate SSH keys in our directory
+        if ssh-keygen -t ed25519 -f "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/test_key" -N "" -C "diagnostic-test" >/dev/null 2>&1; then
+            echo "✅ SSH key generation successful"
+            echo "   Test files created:"
+            ls -la /DATA/AppData/yunderagithubcompiler/uidata/.ssh/test_key* 2>/dev/null || echo "   (files not visible)"
+            # Clean up test files
+            rm -f /DATA/AppData/yunderagithubcompiler/uidata/.ssh/test_key*
         else
-            echo "❌ SSH public key not found in either location!"
-            echo "⚠️ SSH functionality will not be available, but installation will continue"
-            PUBLIC_KEY_FILE=""
+            echo "❌ SSH key generation failed"
         fi
         
-        if [ -n "$PUBLIC_KEY_FILE" ] && [ -f "$PUBLIC_KEY_FILE" ]; then
-            PUBLIC_KEY=$(cat "$PUBLIC_KEY_FILE")
-            if ! touch /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
-                echo "❌ Failed to create authorized_keys - SSH setup incomplete but installation will continue"
-            else
-                if ! grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
-                    echo "$PUBLIC_KEY" >> /home/ubuntu/.ssh/authorized_keys 2>/dev/null || true
-                    echo "✅ SSH public key added to ubuntu@host authorized_keys"
-                else
-                    echo "✅ SSH public key already in ubuntu@host authorized_keys"
-                fi
-                chmod 600 /home/ubuntu/.ssh/authorized_keys 2>/dev/null || true
-            fi
-        else
-            echo "⚠️ No valid SSH public key available - skipping authorized_keys setup"
-        fi
-        
-        echo "🔑 SSH setup completed - apps can now SSH to ubuntu@host"
         echo ""
-        echo "=== SSH Setup Completed Successfully at $(date) ==="
-    ) >> "$SSH_SETUP_LOG" 2>&1
+        echo "🗂️ Host /tmp Directory Test (Container Perspective):"
+        # Test what /tmp looks like from the container
+        echo "   Container /tmp contents:"
+        ls -la /tmp/ | head -5
+        echo "   Creating test file in container /tmp..."
+        echo "Container test file - $(date)" > /tmp/container-test-$(date +%s).txt
+        echo "   ✅ Test file created in container /tmp"
+        
+        echo ""
+        echo "📋 DIAGNOSTIC SUMMARY:"
+        echo "   - Network connectivity to host: $(ping -c 1 -W 2 172.18.0.1 >/dev/null 2>&1 && echo "OK" || echo "FAILED")"
+        echo "   - SSH port accessible: $(nc -z -w 2 172.18.0.1 22 2>/dev/null && echo "OK" || echo "FAILED")"
+        echo "   - SSH tools available: $(command -v ssh >/dev/null && echo "OK" || echo "MISSING")"
+        echo "   - Directory creation: $([ -d "/DATA/AppData/yunderagithubcompiler/uidata/.ssh/" ] && echo "OK" || echo "FAILED")"
+        echo "   - SSH key generation: $(ssh-keygen -t ed25519 -f "/tmp/diag-test" -N "" >/dev/null 2>&1 && rm -f /tmp/diag-test* && echo "OK" || echo "FAILED")"
+        
+        echo ""
+        echo "🎯 NEXT STEPS RECOMMENDATION:"
+        if nc -z -w 2 172.18.0.1 22 2>/dev/null; then
+            echo "   ✅ SSH service is available - proceed with key-based authentication setup"
+            echo "   📝 Test different users: ubuntu, casaos, root"
+            echo "   🔑 Generate and install SSH keys for host access"
+        else
+            echo "   ❌ SSH service not accessible - investigate host SSH configuration"
+            echo "   📝 Check if SSH service is running on CasaOS host"
+            echo "   🔧 May need alternative approach for host access"
+        fi
+        
+        echo ""
+        echo "=== SSH DIAGNOSTICS Completed at $(date) ==="
+    ) > "$SSH_DIAG_LOG" 2>&1
     
-    echo "✅ SSH setup completed with user-manageable file permissions (check $SSH_SETUP_LOG for details)"
+    echo "✅ SSH diagnostics completed - check $SSH_DIAG_LOG for detailed results"
     
-    # --- single hard check so we still fail on *real* SSH pre-req problems ---
-    if ! touch /DATA/AppData/yunderagithubcompiler/uidata/.ssh/.w && rm -f /DATA/AppData/yunderagithubcompiler/uidata/.ssh/.w; then
-      echo "❌ /DATA/AppData/yunderagithubcompiler/uidata/.ssh is not writable. Aborting install."
-      exit 1
-    fi
-    touch /tmp/yundera-ssh-setup.done  # marker: SSH finished OK
+    # For now, we'll proceed without SSH setup to test basic functionality
+    # The diagnostic log will show us what works and what doesn't
+    touch /tmp/yundera-ssh-setup.done  # marker: diagnostics finished
     
     # Create the watcher (unchanged logic, only minimal project adoption + wait for SSH marker)
     cat > /tmp/yundera-docker-sock-fixer.sh << EOF
