@@ -127,228 +127,432 @@ x-casaos:
   index: /
   webui_port: 3000
   pre-install-cmd: |
-    # Fail on command errors, but allow optional envs to be unset
-    set -e
-
-    # Generate the hash value that will be embedded into the watcher and index
-    if command -v openssl >/dev/null 2>&1; then
-      AUTH_HASH="$(openssl rand -hex 64)"
-    else
-      AUTH_HASH="$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n')"
-    fi
-
+    # Generate the hash value that will be embedded into the background script.
+    AUTH_HASH=$(openssl rand -hex 64)
+    
     echo "🚀 Yundera GitHub Compiler pre-install starting..."
-
-    ########################################################################
-    # SSH setup (best-effort: won’t mask real failures elsewhere)
-    ########################################################################
+    
+    # Setup SSH access for pre-install commands with PROPER USER PERMISSIONS
+    # Log everything to help debug failures
     SSH_SETUP_LOG="/tmp/yundera-ssh-setup-$(date +%Y%m%d-%H%M%S).log"
-    echo "🔧 Setting up SSH access (logging to $SSH_SETUP_LOG)..."
-
-    {
-      BASE_DIR="/DATA/AppData/yunderagithubcompiler"
-      UIDATA_DIR="$BASE_DIR/uidata"
-      SSH_DIR="$UIDATA_DIR/.ssh"
-
-      # Use CasaOS-provided user/group if available
-      OWNER_UID="${PUID:-}"
-      OWNER_GID="${PGID:-}"
-
-      mkdir -p "$SSH_DIR" || true
-      [ -n "$OWNER_UID" ] && [ -n "$OWNER_GID" ] && chown -R "$OWNER_UID:$OWNER_GID" "$BASE_DIR" 2>/dev/null || true
-      chmod 755 "$BASE_DIR" 2>/dev/null || true
-      chmod 755 "$UIDATA_DIR" 2>/dev/null || true
-      chmod 700 "$SSH_DIR" 2>/dev/null || true
-
-      # Verify we can write in SSH dir (hard requirement for key creation)
-      if ! ( touch "$SSH_DIR/.perm_test" && rm -f "$SSH_DIR/.perm_test" ); then
-        echo "❌ $SSH_DIR is not writable; skipping SSH keygen."
-      else
-        echo "✅ $SSH_DIR writable."
-        # Create key if missing (non-fatal if ssh-keygen missing)
-        if [ ! -f "$SSH_DIR/id_ed25519" ]; then
-          if command -v ssh-keygen >/dev/null 2>&1; then
-            ssh-keygen -t ed25519 -f "$SSH_DIR/id_ed25519" -N "" -C "yundera-compiler@container" || true
-            chmod 600 "$SSH_DIR/id_ed25519" 2>/dev/null || true
-            chmod 644 "$SSH_DIR/id_ed25519.pub" 2>/dev/null || true
-            echo "✅ SSH key generated."
-          else
-            echo "⚠️ ssh-keygen not found; skipping key generation."
-          fi
+    echo "🔧 Setting up SSH access with user-manageable permissions (logging to $SSH_SETUP_LOG)..."
+    
+    (
+        echo "=== SSH Setup Started at $(date) ==="
+        echo "Host: $(hostname)"
+        echo "User: $(whoami)"
+        echo "UID/GID: $(id)"
+        echo "Working directory: $(pwd)"
+        echo ""
+        
+        echo "📁 Fresh PCS installation - creating directory structure with proper permissions..."
+        
+        # Check if this is truly a fresh installation
+        if [ -d "/DATA/AppData/yunderagithubcompiler" ]; then
+            echo "⚠️ WARNING: yunderagithubcompiler directory already exists - checking ownership..."
+            echo "   Existing: $(ls -ld /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || echo 'cannot read')"
+        fi
+        
+        # Step 1: Create yunderagithubcompiler directory with proper ownership from the start
+        echo ""
+        echo "🔨 STEP 1: Creating yunderagithubcompiler directory with careful permissions..."
+        
+        # Create directory and immediately set ownership to prevent root ownership
+        if mkdir -p /DATA/AppData/yunderagithubcompiler/ 2>/dev/null; then
+            echo "   Directory created successfully"
         else
-          echo "✅ SSH key already exists."
+            echo "   Directory already exists"
         fi
-      fi
-
-      # Authorized_keys on host (best-effort)
-      if [ -f "$SSH_DIR/id_ed25519.pub" ]; then
-        PUBKEY="$(cat "$SSH_DIR/id_ed25519.pub" 2>/dev/null || true)"
-        TARGET_SSH_USER="${TARGET_SSH_USER:-}"
-        if [ -z "$TARGET_SSH_USER" ]; then
-          TARGET_SSH_USER="$(awk -F: '$3>=1000 && $3<65534 && $6 ~ /^\/home\// {print $1; exit}' /etc/passwd 2>/dev/null || true)"
-          [ -z "$TARGET_SSH_USER" ] && [ -d /home/ubuntu ] && TARGET_SSH_USER="ubuntu" || true
-        fi
-        if [ -n "$TARGET_SSH_USER" ] && getent passwd "$TARGET_SSH_USER" >/dev/null 2>&1; then
-          TARGET_HOME="$(getent passwd "$TARGET_SSH_USER" | cut -d: -f6)"
-          mkdir -p "$TARGET_HOME/.ssh" 2>/dev/null || true
-          chmod 700 "$TARGET_HOME/.ssh" 2>/dev/null || true
-          AUTH_KEYS="$TARGET_HOME/.ssh/authorized_keys"
-          touch "$AUTH_KEYS" 2>/dev/null || true
-          chmod 600 "$AUTH_KEYS" 2>/dev/null || true
-          if [ -n "$PUBKEY" ] && ! grep -Fq "$PUBKEY" "$AUTH_KEYS" 2>/dev/null; then
-            echo "$PUBKEY" >> "$AUTH_KEYS" 2>/dev/null || true
-            echo "✅ Public key added to $TARGET_SSH_USER authorized_keys"
-          else
-            echo "ℹ️ Public key already present or empty."
-          fi
-          if id "$TARGET_SSH_USER" >/dev/null 2>&1; then
-            chown -R "$(id -u "$TARGET_SSH_USER")":"$(id -g "$TARGET_SSH_USER")" "$TARGET_HOME/.ssh" 2>/dev/null || true
-          fi
+        
+        # Ensure proper ownership (ubuntu user with docker group)
+        if chown ubuntu:988 /DATA/AppData/yunderagithubcompiler/ 2>/dev/null; then
+            echo "✅ Set yunderagithubcompiler ownership to ubuntu:988"
         else
-          echo "ℹ️ No suitable non-root user found; skipping authorized_keys."
+            echo "❌ Cannot set yunderagithubcompiler ownership to ubuntu:988"
         fi
-      fi
-    } > "$SSH_SETUP_LOG" 2>&1
-    echo "✅ SSH setup completed (see $SSH_SETUP_LOG)."
-
-    ########################################################################
-    # Watcher: waits for CasaOS to settle, reuses the SAME compose project,
-    # adds docker.sock + envs, removes pre-install-cmd line, then recreates.
-    ########################################################################
-    cat > /tmp/yundera-docker-sock-fixer.sh << 'EOF'
-    #!/bin/sh
-    set -e
-
-    echo "🔄 Yundera docker.sock fixer started at $(date)"
-
+        
+        # Set permissions
+        if chmod 755 /DATA/AppData/yunderagithubcompiler/ 2>/dev/null; then
+            echo "✅ Set yunderagithubcompiler permissions to 755"
+        else
+            echo "❌ Cannot set yunderagithubcompiler permissions to 755"
+        fi
+        
+        echo "   Final state: $(ls -ld /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || echo 'FAILED')"
+        
+        # Test write access
+        if touch /DATA/AppData/yunderagithubcompiler/.test_write 2>/dev/null; then
+            rm -f /DATA/AppData/yunderagithubcompiler/.test_write
+            echo "✅ yunderagithubcompiler directory is writable by ubuntu user"
+        else
+            echo "❌ yunderagithubcompiler directory is NOT writable by ubuntu user"
+        fi
+        
+        # Step 2: Create uidata directory with proper ownership from the start
+        echo ""
+        echo "🔨 STEP 2: Creating uidata directory with careful permissions..."
+        
+        # Create uidata and immediately set proper ownership
+        if mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null; then
+            echo "   uidata directory created successfully"
+        else
+            echo "   uidata directory already exists"
+        fi
+        
+        # Set ownership immediately after creation
+        if chown ubuntu:988 /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null; then
+            echo "✅ Set uidata ownership to ubuntu:988"
+        else
+            echo "❌ Cannot set uidata ownership to ubuntu:988"
+        fi
+        
+        # Set permissions
+        if chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null; then
+            echo "✅ Set uidata permissions to 755"
+        else
+            echo "❌ Cannot set uidata permissions to 755"
+        fi
+        
+        echo "   Final state: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null || echo 'FAILED')"
+        
+        # Test write access to uidata
+        if touch /DATA/AppData/yunderagithubcompiler/uidata/.test_write 2>/dev/null; then
+            rm -f /DATA/AppData/yunderagithubcompiler/uidata/.test_write
+            echo "✅ uidata directory is writable by ubuntu user"
+        else
+            echo "❌ uidata directory is NOT writable by ubuntu user"
+        fi
+        
+        # Step 3: Create .ssh directory with EXTRA CARE for permissions
+        echo ""
+        echo "🔨 STEP 3: Creating .ssh directory with EXTRA CAREFUL permissions..."
+        
+        # This is the critical step - .ssh directory must be owned by ubuntu, not root
+        if mkdir -p /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null; then
+            echo "   .ssh directory created successfully"
+        else
+            echo "   .ssh directory already exists"
+        fi
+        
+        # IMMEDIATELY set ownership to prevent any root ownership issues
+        echo "   Setting ownership IMMEDIATELY after creation..."
+        if chown ubuntu:988 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null; then
+            echo "✅ Set .ssh ownership to ubuntu:988 IMMEDIATELY"
+        else
+            echo "❌ Cannot set .ssh ownership to ubuntu:988 - this is the problem!"
+            echo "   Current ownership: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null | awk '{print $3":"$4}' || echo 'unknown')"
+        fi
+        
+        # Set proper permissions for .ssh directory (755 for directory access)
+        if chmod 755 /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null; then
+            echo "✅ Set .ssh permissions to 755"
+        else
+            echo "❌ Cannot set .ssh permissions to 755"
+        fi
+        
+        echo "   Final state: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null || echo 'FAILED')"
+        
+        # Test write access to .ssh
+        if touch /DATA/AppData/yunderagithubcompiler/uidata/.ssh/.test_write 2>/dev/null; then
+            rm -f /DATA/AppData/yunderagithubcompiler/uidata/.ssh/.test_write
+            echo "✅ .ssh directory is writable - SSH key generation should work!"
+        else
+            echo "❌ .ssh directory is NOT writable"
+            echo "   This is exactly why SSH key generation fails"
+            echo "   Current permissions: $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null || echo 'cannot read')"
+        fi
+        
+        # Also create ubuntu SSH directory for fallback
+        mkdir -p /home/ubuntu/.ssh
+        chmod 700 /home/ubuntu/.ssh 2>/dev/null && echo "✅ Ubuntu SSH directory ready as fallback" || echo "⚠️ Could not set ubuntu SSH permissions"
+        
+        echo ""
+        echo "📋 SUMMARY: Directory permission fixing completed"
+        echo "   Base dir: $(ls -ld /DATA/AppData/yunderagithubcompiler/ 2>/dev/null | awk '{print $1, $3, $4}' || echo 'FAILED')"
+        echo "   uidata:   $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/ 2>/dev/null | awk '{print $1, $3, $4}' || echo 'FAILED')"
+        echo "   .ssh:     $(ls -ld /DATA/AppData/yunderagithubcompiler/uidata/.ssh/ 2>/dev/null | awk '{print $1, $3, $4}' || echo 'FAILED')"
+    ) > "$SSH_SETUP_LOG" 2>&1
+    
+    # Continue SSH setup in the same log file
+    (
+        echo ""
+        echo "🔐 Checking for existing SSH keys..."
+        FINAL_KEY_DIR="/DATA/AppData/yunderagithubcompiler/uidata/.ssh"
+        
+        if [ ! -f "$FINAL_KEY_DIR/id_ed25519" ]; then
+            echo "🔐 Generating SSH key pair directly in uidata directory..."
+            echo "   Permissions should now be fixed to allow this"
+            
+            # Check if ssh-keygen exists
+            if ! command -v ssh-keygen >/dev/null 2>&1; then
+                echo "❌ ssh-keygen not found - SSH setup will be skipped"
+                echo "Available commands in PATH:"
+                echo "$PATH" | tr ':' '\n' | while read dir; do ls "$dir"/ssh* 2>/dev/null | head -5; done
+                echo "⚠️ SSH functionality will not be available, but installation will continue"
+                echo "🔚 Skipping remaining SSH setup steps"
+            else
+            
+            # Generate SSH key directly in the target directory
+            if ssh-keygen -t ed25519 -f "$FINAL_KEY_DIR/id_ed25519" -N "" -C "yundera-compiler@container"; then
+                echo "✅ SSH key generation successful in target directory"
+                
+                # Set proper permissions on the generated keys (chmod only)
+                chmod 600 "$FINAL_KEY_DIR/id_ed25519" && echo "✅ Set private key permissions (600)" || echo "⚠️ Could not set private key permissions"
+                chmod 644 "$FINAL_KEY_DIR/id_ed25519.pub" && echo "✅ Set public key permissions (644)" || echo "⚠️ Could not set public key permissions"
+                
+                # Verify the files were created correctly
+                echo "📋 SSH key files created:"
+                ls -la "$FINAL_KEY_DIR/" || echo "Cannot list SSH directory"
+            else
+                echo "❌ SSH key generation failed in target directory!"
+                echo "   Falling back to home directory generation..."
+                
+                # Fallback: generate in home directory (remove existing keys first to avoid prompt)
+                echo "🧹 Removing any existing SSH keys in home directory..."
+                rm -f /home/ubuntu/.ssh/id_ed25519 /home/ubuntu/.ssh/id_ed25519.pub
+                
+                if ssh-keygen -t ed25519 -f "/home/ubuntu/.ssh/id_ed25519" -N "" -C "yundera-compiler@container"; then
+                    echo "✅ SSH key generation successful in home directory fallback"
+                    chmod 600 /home/ubuntu/.ssh/id_ed25519 && echo "✅ Set private key permissions in home"
+                    chmod 644 /home/ubuntu/.ssh/id_ed25519.pub && echo "✅ Set public key permissions in home"
+                    echo "⚠️ Keys are in /home/ubuntu/.ssh/ instead of preferred location"
+                else
+                    echo "❌ SSH key generation failed even in home directory!"
+                    echo "⚠️ SSH functionality will not be available, but installation will continue"
+                fi
+            fi
+            fi  # Close the ssh-keygen check
+        else
+            echo "✅ SSH key pair already exists in target directory"
+        fi
+        
+        echo ""
+        echo "🔑 Setting up authorized_keys..."
+        # Find the public key (try both locations)
+        PUBLIC_KEY_FILE=""
+        TEMP_KEY_DIR="/home/ubuntu/.ssh"  # Define this variable here since we removed it above
+        
+        if [ -f "$FINAL_KEY_DIR/id_ed25519.pub" ]; then
+            PUBLIC_KEY_FILE="$FINAL_KEY_DIR/id_ed25519.pub"
+            echo "📍 Using public key from: $PUBLIC_KEY_FILE"
+        elif [ -f "$TEMP_KEY_DIR/id_ed25519.pub" ]; then
+            PUBLIC_KEY_FILE="$TEMP_KEY_DIR/id_ed25519.pub"
+            echo "📍 Using public key from: $PUBLIC_KEY_FILE"
+        else
+            echo "❌ SSH public key not found in either location!"
+            echo "   Checked: $FINAL_KEY_DIR/id_ed25519.pub"
+            echo "   Checked: $TEMP_KEY_DIR/id_ed25519.pub"
+            echo "   Directory listings:"
+            echo "   Final dir: $(ls -la "$FINAL_KEY_DIR/" 2>/dev/null || echo 'does not exist')"
+            echo "   Temp dir: $(ls -la "$TEMP_KEY_DIR/" 2>/dev/null || echo 'does not exist')"
+            echo "⚠️ SSH functionality will not be available, but installation will continue"
+            PUBLIC_KEY_FILE=""  # Set empty to skip authorized_keys setup
+        fi
+        
+        # Only proceed with authorized_keys setup if we have a public key file
+        if [ -n "$PUBLIC_KEY_FILE" ] && [ -f "$PUBLIC_KEY_FILE" ]; then
+            PUBLIC_KEY=$(cat "$PUBLIC_KEY_FILE")
+            echo "🔑 Public key content: $PUBLIC_KEY"
+            echo "   Key length: ${#PUBLIC_KEY} characters"
+            
+            # Ensure authorized_keys exists and add key if not already present
+            if ! touch /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
+                echo "❌ Failed to create authorized_keys - SSH setup incomplete but installation will continue"
+            else
+                if ! grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
+                    if ! echo "$PUBLIC_KEY" >> /home/ubuntu/.ssh/authorized_keys 2>/dev/null; then
+                        echo "❌ Failed to add key to authorized_keys - SSH setup incomplete but installation will continue"
+                    else
+                        echo "✅ SSH public key added to ubuntu@host authorized_keys"
+                    fi
+                else
+                    echo "✅ SSH public key already in ubuntu@host authorized_keys"
+                fi
+                
+                # Set proper permissions for SSH files
+                chmod 600 /home/ubuntu/.ssh/authorized_keys || echo "❌ Failed to chmod authorized_keys"
+                
+                # Verify the key was added
+                if grep -Fq "$PUBLIC_KEY" /home/ubuntu/.ssh/authorized_keys; then
+                    echo "✅ Verification: Key found in authorized_keys"
+                    echo "   authorized_keys file size: $(wc -l /home/ubuntu/.ssh/authorized_keys | awk '{print $1}') lines"
+                else
+                    echo "❌ Verification failed: Key not found in authorized_keys"
+                    echo "⚠️ SSH setup incomplete but installation will continue"
+                fi
+            fi
+        else
+            echo "⚠️ No valid SSH public key available - skipping authorized_keys setup"
+        fi
+        
+        echo "🔑 SSH setup completed - apps can now SSH to ubuntu@host"
+        
+        echo ""
+        echo "=== SSH Setup Completed Successfully at $(date) ==="
+    ) >> "$SSH_SETUP_LOG" 2>&1
+    
+    echo "✅ SSH setup completed with user-manageable file permissions (check $SSH_SETUP_LOG for details)"
+    touch /tmp/yundera-ssh-setup.done   # <<< ADDED (marker that SSH finished)
+    
+    # Create a simplified watcher that waits for compose file and fixes docker.sock
+    # We use `EOF` without quotes to allow the parent shell to expand ${AUTH_HASH} into the script's text.
+    # All other dollar signs are escaped (\$) to be treated as literal characters by the background script.
+    cat > /tmp/yundera-docker-sock-fixer.sh << EOF
+    #!/bin/bash
+    echo "🔄 Yundera docker.sock fixer started at \$(date)"
+    
     COMPOSE_FILE="/DATA/AppData/casaos/apps/yunderagithubcompiler/docker-compose.yml"
-    APP_DIR="/DATA/AppData/casaos/apps/yunderagithubcompiler"
-    SERVICE_NAME="yunderagithubcompiler"
-    LOCKDIR="/tmp/yunderagithubcompiler.lock"
+    CONTAINER_NAME="yunderagithubcompiler"
+    
+    echo "📁 Target compose file: \$COMPOSE_FILE"
+    echo "🐳 Target container: \$CONTAINER_NAME"
 
-    # single-instance lock
-    if ! mkdir "$LOCKDIR" 2>/dev/null; then
-      echo "ℹ️ Watcher already running; exiting."
-      exit 0
-    fi
-    trap 'rmdir "$LOCKDIR"' EXIT
-
-    # Detect Docker GID
+    # Wait for SSH setup marker just in case (should already exist)
+    for i in \$(seq 1 30); do  # <<< ADDED
+      [ -f /tmp/yundera-ssh-setup.done ] && break; sleep 1;  # <<< ADDED
+    done  # <<< ADDED
+    
+    # Get Docker group ID from host system
+    echo "🔍 Detecting Docker group ID..."
     if [ -S /var/run/docker.sock ]; then
-      if stat -c '%g' /var/run/docker.sock >/dev/null 2>&1; then
-        DOCKER_GID="$(stat -c '%g' /var/run/docker.sock)"
-      else
-        DOCKER_GID="$(ls -ln /var/run/docker.sock 2>/dev/null | awk '{print $4}')"
-      fi
-      [ -z "$DOCKER_GID" ] && DOCKER_GID=999
-      echo "✅ Docker group ID: $DOCKER_GID"
+      DOCKER_GID=\$(stat -c '%g' /var/run/docker.sock)
+      echo "✅ Docker group ID detected: \$DOCKER_GID"
     else
-      echo "❌ /var/run/docker.sock not found; using fallback GID 999"
+      echo "❌ Docker socket not found on host, using fallback GID"
       DOCKER_GID=999
     fi
-
-    # 1) Wait for compose file
-    echo "🔍 Waiting for compose file: $COMPOSE_FILE"
-    for i in $(seq 1 180); do
-      [ -f "$COMPOSE_FILE" ] && { echo "✅ Found compose"; break; }
-      sleep 1
-    done
-    [ -f "$COMPOSE_FILE" ] || { echo "❌ Compose not found; exiting watcher"; exit 0; }
-
-    # 2) Ensure volumes/envs in service section
-    SERVICE_SECTION="$(awk '/^[[:space:]]*yunderagithubcompiler:/,/^[[:space:]]*x-casaos:/ {print}' "$COMPOSE_FILE")"
-
-    echo "$SERVICE_SECTION" | grep -q "/var/run/docker.sock:/var/run/docker.sock" || {
-      echo "🔧 Inserting docker.sock volume mount..."
-      cp "$COMPOSE_FILE" "$COMPOSE_FILE.backup" 2>/dev/null || true
-      awk '
-        BEGIN{in_svc=0; inserted=0}
-        /^[[:space:]]*yunderagithubcompiler:/ {in_svc=1}
-        in_svc && /^[[:space:]]*volumes:[[:space:]]*$/ {
-          print; print "            - type: bind"
-          print "              source: /var/run/docker.sock"
-          print "              target: /var/run/docker.sock"
-          inserted=1; next
-        }
-        in_svc && /^[[:space:]]*networks:[[:space:]]*$/ && !inserted {
-          print "        volumes:"
-          print "            - type: bind"
-          print "              source: /var/run/docker.sock"
-          print "              target: /var/run/docker.sock"
-          print; inserted=1; next
-        }
-        {print}
-      ' "$COMPOSE_FILE" > "$COMPOSE_FILE.tmp" && mv "$COMPOSE_FILE.tmp" "$COMPOSE_FILE"
-    }
-
-    grep -q 'DOCKER_GID:' "$COMPOSE_FILE" || sed -i 's/WEBUI_PORT: *"3000"/WEBUI_PORT: "3000"\n            DOCKER_GID: "'"$DOCKER_GID"'"/' "$COMPOSE_FILE"
-    grep -q 'AUTH_HASH:'  "$COMPOSE_FILE" || sed -i 's/WEBUI_PORT: *"3000"/WEBUI_PORT: "3000"\n            AUTH_HASH: "__AUTH_HASH__"/' "$COMPOSE_FILE"
-
-    # Add hash to x-casaos.index if missing
-    grep -q '^ *index: */\?hash=' "$COMPOSE_FILE" || sed -i 's|^\( *index: *\)/.*$|\1/?hash=__AUTH_HASH__|' "$COMPOSE_FILE"
-
-    # Remove the single-line pre-install-cmd (CasaOS flattens it)
-    sed -i '/^[[:space:]]*pre-install-cmd:/d' "$COMPOSE_FILE"
-
-    # 3) Wait for container stability (avoid racing CasaOS)
-    echo "⏳ Waiting for container to be stable..."
-    stable=0
-    prev="$(docker ps -a --filter "name=^${SERVICE_NAME}$" --format "{{.ID}} {{.Status}}")"
-    for i in $(seq 1 30); do
-      cur="$(docker ps -a --filter "name=^${SERVICE_NAME}$" --format "{{.ID}} {{.Status}}")"
-      if [ -n "$cur" ] && [ "$cur" = "$prev" ] && echo "$cur" | grep -q 'Up '; then
-        stable=$((stable+1))
-      else
-        stable=0
+    
+    # Step 1: Wait for compose file to exist
+    echo "🔍 Step 1: Waiting for compose file to exist..."
+    counter=0
+    max_wait=120  # 120 seconds max wait (2 minutes)
+    
+    while [ \$counter -lt \$max_wait ]; do
+      if [ -f "\$COMPOSE_FILE" ]; then
+        echo "✅ Compose file exists after \$counter seconds"
+        break
       fi
-      [ $stable -ge 3 ] && { echo "✅ Stable"; break; }
-      prev="$cur"
+      echo "⏳ Compose file not found yet... (\${counter}s/\${max_wait}s)"
       sleep 2
+      counter=\$((counter + 2))
     done
-
-    # 4) Use the SAME compose project as CasaOS to avoid name conflicts
-    PROJECT="$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "${SERVICE_NAME}" 2>/dev/null || true)"
-    [ -z "$PROJECT" ] && PROJECT="$(basename "$APP_DIR")"
-    echo "🔧 Using compose project: $PROJECT"
-
-    cd "$APP_DIR"
-
-    compose_up() {
-      if docker compose version >/dev/null 2>&1; then
-        docker compose -p "$PROJECT" up -d --force-recreate
-      elif command -v docker-compose >/dev/null 2>&1; then
-        docker-compose -p "$PROJECT" up -d --force-recreate
-      else
-        echo "⚠️ No docker compose available; skipping restart"
-        return 0
-      fi
-    }
-
-    # 5) Recreate; if conflict persists, stop+rm then up (same project)
-    if ! compose_up; then
-      echo "⚠️ compose up failed; trying stop+rm then up"
-      docker stop "$SERVICE_NAME" >/dev/null 2>&1 || true
-      docker rm   "$SERVICE_NAME" >/dev/null 2>&1 || true
-      compose_up || echo "❌ compose up failed again"
+    
+    if [ ! -f "\$COMPOSE_FILE" ]; then
+      echo "❌ Compose file not found after \${max_wait}s, exiting"
+      exit 1
     fi
-
-    # 6) Verify
-    sleep 4
-    if docker ps --filter "name=^${SERVICE_NAME}$" --format "{{.Names}}\t{{.Status}}" | grep -q "^${SERVICE_NAME}"; then
-      echo "✅ ${SERVICE_NAME} running:"
-      docker ps --filter "name=^${SERVICE_NAME}$" --format "{{.Names}}\t{{.Status}}" || true
-      docker exec "${SERVICE_NAME}" test -S /var/run/docker.sock 2>/dev/null \
-        && echo "✅ docker.sock accessible in container" \
-        || echo "❌ docker.sock not accessible in container"
+    
+    # Step 2: Check if docker.sock is already mounted
+    SERVICE_SECTION=\$(awk '/^[[:space:]]*yunderagithubcompiler:/,/^[[:space:]]*x-casaos:/ {
+      if (/^[[:space:]]*x-casaos:/) exit;
+      print
+    }' "\$COMPOSE_FILE")
+    
+    if echo "\$SERVICE_SECTION" | grep -q "/var/run/docker.sock:/var/run/docker.sock"; then
+      echo "✅ Docker.sock is already mounted in service volumes section"
     else
-      echo "❌ ${SERVICE_NAME} is not running after restart"
+      echo "❌ Docker.sock is NOT mounted in service volumes section"
+      
+      # Step 3: Add docker.sock mount and environment variables
+      echo "🔧 Step 3: Adding docker.sock mount to compose file..."
+      
+      cp "\$COMPOSE_FILE" "\$COMPOSE_FILE.backup"
+      echo "📋 Backed up compose file to \$COMPOSE_FILE.backup"
+      
+      if echo "\$SERVICE_SECTION" | grep -q "volumes:"; then
+        echo "📁 Found existing volumes section in service"
+        
+        sed -i '/^[[:space:]]*volumes:/,/^[[:space:]]*networks:/ {
+          /^[[:space:]]*read_only:[[:space:]]*true/ {
+            a\            - type: bind\n              source: /var/run/docker.sock\n              target: /var/run/docker.sock
+          }
+        }' "\$COMPOSE_FILE"
+        
+        echo "🔧 Adding Docker group ID and AUTH_HASH to environment variables..."
+        
+        sed -i "s/WEBUI_PORT: \".*\"/&\\n            DOCKER_GID: \"\$DOCKER_GID\"\\n            AUTH_HASH: \"${AUTH_HASH}\"/" "\$COMPOSE_FILE"
+        
+        echo "✅ Added docker.sock mount and environment variables to existing sections."
+      else
+        echo "📁 No volumes section found in service, adding one"
+        
+        sed -i '/^[[:space:]]*yunderagithubcompiler:/,/^[[:space:]]*networks:/ {
+          /^[[:space:]]*networks:/ i\    volumes:\n        - type: bind\n          source: /var/run/docker.sock\n          target: /var/run/docker.sock\n
+        }' "\$COMPOSE_FILE"
+        echo "✅ Added volumes section with docker.sock mount"
+      fi
+
+      # Modify the index line to include the hash
+      sed -i "s|index: /|index: /?hash=${AUTH_HASH}|" "\$COMPOSE_FILE"
+
+      # Cleanly remove the entire pre-install-cmd line from the final compose file
+      echo "🔧 Removing pre-install-cmd from final compose file..."
+      sed -i '/^[[:space:]]*pre-install-cmd:/d' "\$COMPOSE_FILE"
+    fi
+    
+    # Step 4: Wait for container to be created
+    echo "🔍 Step 4: Waiting for container to be created..."
+    counter=0
+    max_wait=60  # 60 seconds max wait
+    
+    while [ \$counter -lt \$max_wait ]; do
+      if docker ps -a --filter "name=\$CONTAINER_NAME" --format "{{.Names}}" | grep -q "^\$CONTAINER_NAME\$"; then
+        echo "✅ Container \$CONTAINER_NAME found after \$counter seconds"
+        break
+      fi
+      echo "⏳ Container not found yet... (\${counter}s/\${max_wait}s)"
+      sleep 2
+      counter=\$((counter + 2))
+    done
+    
+    if ! docker ps -a --filter "name=\$CONTAINER_NAME" --format "{{.Names}}" | grep -q "^\$CONTAINER_NAME\$"; then
+      echo "❌ Container \$CONTAINER_NAME not found after \${max_wait}s"
+      echo "📋 Available containers:"
+      docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+      exit 1
     fi
 
-    echo "🏁 Watcher script completed at $(date)"
+    # --- MINIMAL CHANGE: adopt CasaOS compose project to avoid name conflict ---
+    PROJECT=\$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "\$CONTAINER_NAME" 2>/dev/null || true)  # <<< ADDED
+    [ -z "\$PROJECT" ] && PROJECT=\$(basename "/DATA/AppData/casaos/apps/yunderagithubcompiler")                                  # <<< ADDED
+    echo "🔧 Using compose project: \$PROJECT"                                                                                    # <<< ADDED
+    # ----------------------------------------------------------------------------
+    
+    # Step 5: Restart the container with new compose file
+    echo "🔄 Step 5: Restarting container with updated compose file..."
+    
+    cd "/DATA/AppData/casaos/apps/yunderagithubcompiler"
+    if docker compose version >/dev/null 2>&1; then
+      docker compose -p "\$PROJECT" up -d --force-recreate     # <<< ADDED (-p)
+    elif command -v docker-compose >/dev/null 2>&1; then
+      docker-compose -p "\$PROJECT" up -d --force-recreate     # <<< ADDED (-p)
+    else
+      echo "⚠️ No docker compose binary found; skipping restart"
+      exit 0
+    fi
+    
+    # Step 6: Verify the restart
+    echo "✅ Step 6: Verifying restart..."
+    sleep 5
+    
+    NEW_STATUS=\$(docker ps --filter "name=\$CONTAINER_NAME" --format "{{.Status}}")
+    if [ -n "\$NEW_STATUS" ]; then
+      echo "✅ Container \$CONTAINER_NAME is now running: \$NEW_STATUS"
+      
+      if docker exec "\$CONTAINER_NAME" test -S /var/run/docker.sock 2>/dev/null; then
+        echo "✅ Docker.sock is successfully mounted and accessible in container"
+      else
+        echo "❌ Docker.sock is NOT accessible in container"
+      fi
+    else
+      echo "❌ Container \$CONTAINER_NAME is not running after restart"
+    fi
+    
+    echo "🏁 Watcher script completed at \$(date)"
     EOF
-
-    # Inject the runtime AUTH_HASH into the watcher text
-    sed -i "s|__AUTH_HASH__|$AUTH_HASH|g" /tmp/yundera-docker-sock-fixer.sh
+    
+    # Make it executable and run in background
     chmod +x /tmp/yundera-docker-sock-fixer.sh
     nohup /tmp/yundera-docker-sock-fixer.sh > /tmp/yundera-docker-sock-fixer.log 2>&1 &
-    echo "🚀 Docker.sock fixer launched, logs: /tmp/yundera-docker-sock-fixer.log"
+    
+    echo "🚀 Docker.sock fixer launched, check logs at /tmp/yundera-docker-sock-fixer.log"
