@@ -136,7 +136,7 @@ x-casaos:
     
     echo "🚀 Yundera GitHub Compiler pre-install starting..."
     
-    # Setup directories for Docker exec approach (no SSH needed)
+    # Setup directories for Docker exec approach
     echo "📁 Setting up GitHub Compiler directories..."
     
     # Create basic directory structure for GitHub Compiler
@@ -161,7 +161,7 @@ x-casaos:
         echo "⚠️ Docker access not available - pre-install commands may not work properly"
     fi
     
-    # Create the watcher (unchanged logic, only minimal project adoption + wait for SSH marker)
+    # Create the watcher (unchanged logic, only minimal project adoption)
     cat > /tmp/yundera-docker-sock-fixer.sh << EOF
     #!/bin/bash
     echo "🔄 Yundera docker.sock fixer started at \$(date)"
@@ -172,11 +172,8 @@ x-casaos:
     echo "📁 Target compose file: \$COMPOSE_FILE"
     echo "🐳 Target container: \$CONTAINER_NAME"
 
-    # Wait for SSH setup to finish (marker)
-    for i in \$(seq 1 30); do
-      [ -f /tmp/yundera-ssh-setup.done ] && break
-      sleep 1
-    done
+    # Wait briefly for system to stabilize
+    sleep 2
     
     # Get Docker group ID from host system
     echo "🔍 Detecting Docker group ID..."
