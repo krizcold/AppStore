@@ -127,185 +127,39 @@ x-casaos:
   index: /
   webui_port: 3000
   pre-install-cmd: |
-    # EXECUTION ENVIRONMENT DIAGNOSTIC MODE
-    echo "🔬 EXECUTION ENVIRONMENT DIAGNOSTIC - Understanding CasaOS Pre-Install Context"
-    echo "============================================================================"
-    
-    # Generate the hash value for later use
+    # Generate the hash value that will be embedded into the background script.
     if command -v openssl >/dev/null 2>&1; then
       AUTH_HASH=$(openssl rand -hex 64)
     else
       AUTH_HASH=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n')
     fi
     
-    ENV_DIAG_LOG="/tmp/yundera-env-diagnostic-$(date +%Y%m%d-%H%M%S).log"
-    echo "📋 Environment diagnostic results will be logged to: $ENV_DIAG_LOG"
+    echo "🚀 Yundera GitHub Compiler pre-install starting..."
     
-    (
-        set +e  # Don't let diagnostic failures abort the pre-install
-        echo "=== EXECUTION ENVIRONMENT DIAGNOSTICS Started at $(date) ==="
-        
-        echo ""
-        echo "🏠 BASIC ENVIRONMENT ANALYSIS:"
-        echo "   Hostname: $(hostname)"
-        echo "   User: $(whoami)"
-        echo "   UID/GID: $(id)"
-        echo "   Working directory: $(pwd)"
-        echo "   Shell: $SHELL"
-        echo "   PATH: $PATH"
-        
-        echo ""
-        echo "🐳 CONTAINER VS HOST DETECTION:"
-        echo "   Are we in a container?"
-        if [ -f /.dockerenv ]; then
-            echo "   ✅ /.dockerenv exists - we are in a container"
-        else
-            echo "   ❌ /.dockerenv not found"
-        fi
-        
-        echo "   Container ID detection:"
-        if [ -f /proc/1/cgroup ]; then
-            echo "   /proc/1/cgroup: $(head -1 /proc/1/cgroup)"
-        fi
-        
-        echo "   Process 1 command:"
-        echo "   $(ps -p 1 -o comm= 2>/dev/null || echo 'cannot read')"
-        
-        echo ""
-        echo "🗂️ FILESYSTEM ANALYSIS:"
-        echo "   Root filesystem:"
-        df -h / | head -2
-        
-        echo "   /tmp filesystem access:"
-        echo "   Writing test file to /tmp..."
-        TEST_FILE="/tmp/yundera-host-test-$(date +%s).txt"
-        echo "CasaOS Pre-install Test - $(date)" > "$TEST_FILE" 2>/dev/null
-        if [ -f "$TEST_FILE" ]; then
-            echo "   ✅ Can write to /tmp: $TEST_FILE"
-            echo "   File contents: $(cat "$TEST_FILE")"
-            echo "   File permissions: $(ls -la "$TEST_FILE")"
-        else
-            echo "   ❌ Cannot write to /tmp"
-        fi
-        
-        echo "   /DATA filesystem access:"
-        if [ -d "/DATA" ]; then
-            echo "   ✅ /DATA directory exists"
-            echo "   /DATA contents: $(ls -la /DATA/ | head -5)"
-            if mkdir -p /DATA/AppData/test-yundera-$(date +%s) 2>/dev/null; then
-                echo "   ✅ Can write to /DATA/AppData/"
-            else
-                echo "   ❌ Cannot write to /DATA/AppData/"
-            fi
-        else
-            echo "   ❌ /DATA directory does not exist"
-        fi
-        
-        echo ""
-        echo "🐋 DOCKER ACCESS TEST:"
-        echo "   Docker socket access:"
-        if [ -S /var/run/docker.sock ]; then
-            echo "   ✅ Docker socket exists at /var/run/docker.sock"
-            echo "   Socket permissions: $(ls -la /var/run/docker.sock)"
-            if command -v docker >/dev/null 2>&1; then
-                echo "   ✅ Docker command available"
-                echo "   Testing docker access..."
-                if timeout 5 docker ps >/dev/null 2>&1; then
-                    echo "   ✅ Docker command works - can list containers"
-                    echo "   Container list:"
-                    docker ps --format "table {{.Names}}\t{{.Status}}" | head -5
-                else
-                    echo "   ❌ Docker command fails (permission denied?)"
-                fi
-            else
-                echo "   ❌ Docker command not available"
-            fi
-        else
-            echo "   ❌ Docker socket not accessible"
-        fi
-        
-        echo ""
-        echo "🌐 NETWORK NAMESPACE TEST:"
-        echo "   Network interfaces:"
-        ip addr show 2>/dev/null | grep -E "^[0-9]+:" | head -5 || echo "   ip command not available"
-        
-        echo "   Can we reach external internet?"
-        if ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then
-            echo "   ✅ Internet connectivity works"
-        else
-            echo "   ❌ No internet connectivity"
-        fi
-        
-        echo "   Can we reach host gateway?"
-        GATEWAY=$(ip route show default 2>/dev/null | awk '/default via/ {print $3}' | head -1)
-        if [ -n "$GATEWAY" ]; then
-            echo "   Default gateway: $GATEWAY"
-            if ping -c 1 -W 2 "$GATEWAY" >/dev/null 2>&1; then
-                echo "   ✅ Can ping gateway"
-            else
-                echo "   ❌ Cannot ping gateway"
-            fi
-        else
-            echo "   ❌ No default gateway found"
-        fi
-        
-        echo ""
-        echo "🔧 PROCESS AND SYSTEM INFO:"
-        echo "   Process list (first 5):"
-        ps aux | head -5 2>/dev/null || echo "   ps command failed"
-        
-        echo "   System uptime:"
-        uptime 2>/dev/null || echo "   uptime command not available"
-        
-        echo "   Available commands:"
-        for cmd in bash sh nc curl wget systemctl service; do
-            if command -v "$cmd" >/dev/null 2>&1; then
-                echo "   ✅ $cmd available"
-            else
-                echo "   ❌ $cmd not available"
-            fi
-        done
-        
-        echo ""
-        echo "📋 EXECUTION CONTEXT ANALYSIS:"
-        echo "   Based on findings:"
-        if [ -f /.dockerenv ]; then
-            echo "   🐳 We are running in a container"
-            if [ -S /var/run/docker.sock ]; then
-                echo "   🔧 Docker socket is available - can potentially control host containers"
-            fi
-            if [ -d "/DATA" ]; then
-                echo "   📁 Host /DATA filesystem is mounted - can access host files"
-            fi
-            if timeout 5 docker ps >/dev/null 2>&1; then
-                echo "   ⚡ Docker commands work - can execute on host via docker exec"
-            fi
-        else
-            echo "   🏠 We might be running directly on host"
-        fi
-        
-        echo ""
-        echo "🎯 RECOMMENDED APPROACH FOR HOST ACCESS:"
-        if timeout 5 docker ps >/dev/null 2>&1; then
-            echo "   ✅ USE DOCKER EXEC: Execute commands on host via docker exec"
-            echo "   💡 Find host container or create temporary container with host access"
-        elif [ -d "/DATA" ]; then
-            echo "   ✅ USE FILESYSTEM: Direct file operations on mounted /DATA"
-            echo "   💡 Write files directly to host filesystem via mounted volumes"
-        else
-            echo "   ❌ LIMITED OPTIONS: May need alternative approach"
-            echo "   💡 Check if we're already running on host or need different method"
-        fi
-        
-        echo ""
-        echo "=== EXECUTION ENVIRONMENT DIAGNOSTICS Completed at $(date) ==="
-    ) > "$ENV_DIAG_LOG" 2>&1
+    # Setup directories for Docker exec approach (no SSH needed)
+    echo "📁 Setting up GitHub Compiler directories..."
     
-    echo "✅ Environment diagnostics completed - check $ENV_DIAG_LOG for detailed results"
+    # Create basic directory structure for GitHub Compiler
+    mkdir -p /DATA/AppData/yunderagithubcompiler/repos 2>/dev/null
+    mkdir -p /DATA/AppData/yunderagithubcompiler/uidata 2>/dev/null
     
-    # For now, we'll proceed without SSH setup to test basic functionality
-    # The diagnostic log will show us what works and what doesn't
-    touch /tmp/yundera-ssh-setup.done  # marker: diagnostics finished
+    # Set proper permissions (ubuntu user with docker group)
+    chown -R ubuntu:988 /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || true
+    chmod -R 755 /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || true
+    
+    echo "✅ GitHub Compiler directories created with proper permissions"
+    
+    # Test Docker access to ensure docker exec approach will work
+    if command -v docker >/dev/null 2>&1 && timeout 5 docker ps >/dev/null 2>&1; then
+        echo "✅ Docker access confirmed - pre-install commands will use docker exec approach"
+        if docker ps --filter "name=casaos" --format "{{.Names}}" | grep -q "casaos"; then
+            echo "✅ CasaOS container found - host command execution ready"
+        else
+            echo "⚠️ CasaOS container not found - may affect pre-install command execution"
+        fi
+    else
+        echo "⚠️ Docker access not available - pre-install commands may not work properly"
+    fi
     
     # Create the watcher (unchanged logic, only minimal project adoption + wait for SSH marker)
     cat > /tmp/yundera-docker-sock-fixer.sh << EOF
