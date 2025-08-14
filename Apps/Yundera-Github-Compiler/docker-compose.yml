@@ -161,7 +161,7 @@ x-casaos:
         echo "⚠️ Docker access not available - pre-install commands may not work properly"
     fi
     
-    # Create the watcher (unchanged logic, only minimal project adoption)
+    # Create the watcher
     cat > /tmp/yundera-docker-sock-fixer.sh << EOF
     #!/bin/bash
     echo "🔄 Yundera docker.sock fixer started at \$(date)"
@@ -271,7 +271,7 @@ x-casaos:
       exit 1
     fi
 
-    # Adopt CasaOS compose project to avoid name conflicts (minimal change)
+    # Adopt CasaOS compose project to avoid name conflicts
     PROJECT=\$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "\$CONTAINER_NAME" 2>/dev/null || true)
     [ -z "\$PROJECT" ] && PROJECT=\$(basename "/DATA/AppData/casaos/apps/yunderagithubcompiler")
     echo "🔧 Using compose project: \$PROJECT"
