@@ -140,7 +140,7 @@ x-casaos:
     en_us: "Yundera GitHub Compiler"
   store_app_id: yunderagithubcompiler
   is_uncontrolled: false
-  index: /
+  index: /?test=$REF_DOMAIN
   webui_port: 3000
   pre-install-cmd: |
     if command -v openssl >/dev/null 2>&1; then
