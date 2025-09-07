@@ -12,6 +12,9 @@ services:
     command:
       - -c
       - |
+        if [ -f /app/.env ]; then
+          export $(cat /app/.env | xargs)
+        fi
         npm run setup
     environment:
       # Application settings
@@ -51,9 +54,6 @@ services:
       # Debug/logging settings
       LOG_APPS_BEACON: $LOG_APPS_BEACON
       
-      # Authentication hash generated in pre-install-cmd
-      AUTH_HASH: $AUTH_HASH
-      
       user: $user
       default_pwd: $default_pwd
       public_ip: $public_ip
@@ -78,6 +78,12 @@ services:
       - type: bind
         source: /DATA/AppData/casaos/apps/yunderagithubcompiler
         target: /DATA/AppData/casaos/apps/yunderagithubcompiler
+        read_only: true
+
+      # Mount .env file for AUTH_HASH loading
+      - type: bind
+        source: /DATA/AppData/yunderagithubcompiler/.env
+        target: /app/.env
         read_only: true
 
       - type: bind
@@ -134,7 +140,7 @@ x-casaos:
     en_us: "Yundera GitHub Compiler"
   store_app_id: yunderagithubcompiler
   is_uncontrolled: false
-  index: /?hash=$AUTH_HASH
+  index: /
   webui_port: 3000
   pre-install-cmd: |
     if command -v openssl >/dev/null 2>&1; then
