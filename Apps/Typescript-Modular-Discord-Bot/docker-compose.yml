@@ -3,7 +3,7 @@ name: typescriptmodulardiscordbot
 services:
   typescriptmodulardiscordbot:
     image: krizcold/typescript-modular-discord-bot:latest
-    container_name: typescript-modular-discord-bot
+    container_name: typescriptmodulardiscordbot
     restart: unless-stopped
     environment:
       DISCORD_TOKEN: 'REPLACE WITH YOUR DISCORD BOT TOKEN'
@@ -11,8 +11,11 @@ services:
       CLIENT_ID: 'REPLACE WITH THE BOT CLIENT ID'
     volumes:
       - type: bind
-        source: /DATA/AppData/typescript-modular-discord-bot/smdb-source/
+        source: $DATA_ROOT/AppData/typescriptmodulardiscordbot/smdb-source
         target: /app/smdb-source
+      - type: bind
+        source: $DATA_ROOT/AppData/typescriptmodulardiscordbot/data
+        target: /data
     network_mode: bridge
     expose:
       - 80
@@ -21,6 +24,9 @@ services:
         - container: /app/smdb-source
           description:
             en_us: Typescript Modular Discord Bot source directory.
+        - container: /data
+          description:
+            en_us: Persistent data directory for update configs and bot data.
 
 x-casaos:
   architectures:
