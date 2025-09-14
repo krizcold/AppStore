@@ -70,16 +70,13 @@ x-casaos:
   volumes:
     - /DATA/AppData/$AppID/nginx
   pre-install-cmd: |
-    # Create required directories
     mkdir -p /DATA/AppData/yunderaterminal/nginx 2>/dev/null
     mkdir -p /DATA/AppData/yunderaterminal/nginx-cache/{client_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp} 2>/dev/null
     chown -R ubuntu:988 /DATA/AppData/yunderaterminal/ 2>/dev/null || true
     chmod -R 755 /DATA/AppData/yunderaterminal/ 2>/dev/null || true
 
-    # Create nginx.conf with AUTH_HASH substitution
     NGINX_DIR="/DATA/AppData/yunderaterminal/nginx"
     cat > "$NGINX_DIR/nginx.conf" << 'NGINX_EOF'
-    # Custom nginx.conf with proper permissions
     pid /DATA/AppData/yunderaterminal/nginx-cache/nginx.pid;
     error_log /DATA/AppData/yunderaterminal/nginx-cache/error.log;
 
@@ -91,7 +88,6 @@ x-casaos:
         include /etc/nginx/mime.types;
         default_type application/octet-stream;
 
-        # Custom temp directories
         client_body_temp_path /DATA/AppData/yunderaterminal/nginx-cache/client_temp;
         proxy_temp_path /DATA/AppData/yunderaterminal/nginx-cache/proxy_temp;
         fastcgi_temp_path /DATA/AppData/yunderaterminal/nginx-cache/fastcgi_temp;
@@ -107,40 +103,29 @@ x-casaos:
             listen 3000;
             server_name _;
 
-            location /health {
-                return 200 "OK";
-            }
-
             location / {
-                # Check for valid hash parameter
-                if ($arg_hash != "REPLACE_AUTH_HASH") {
+                if (\$arg_hash != "$AUTH_HASH") {
                     return 403 "Access denied: Invalid or missing authentication hash. Please access through CasaOS dashboard.";
                 }
 
-                # Proxy to ttyd with optimizations
                 proxy_pass http://yunderaterminaltty:7681;
                 proxy_http_version 1.1;
-                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Upgrade \$http_upgrade;
                 proxy_set_header Connection "upgrade";
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_set_header Host \$host;
+                proxy_set_header X-Real-IP \$remote_addr;
+                proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto \$scheme;
 
-                # Optimize for terminal responsiveness
                 proxy_buffering off;
                 proxy_cache off;
                 proxy_read_timeout 86400;
                 proxy_send_timeout 86400;
                 proxy_connect_timeout 60s;
 
-                # WebSocket optimizations
-                proxy_set_header X-Forwarded-Host $host;
-                proxy_set_header X-Forwarded-Server $host;
+                proxy_set_header X-Forwarded-Host \$host;
+                proxy_set_header X-Forwarded-Server \$host;
             }
         }
     }
     NGINX_EOF
-
-        # Replace AUTH_HASH placeholder with actual hash from environment
-        sed -i "s/REPLACE_AUTH_HASH/${AUTH_HASH}/g" "$NGINX_DIR/nginx.conf"
