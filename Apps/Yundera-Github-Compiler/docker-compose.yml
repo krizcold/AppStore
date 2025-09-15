@@ -13,6 +13,7 @@ services:
       BACKEND_HOST: "yunderagithubcompilerapp"
       BACKEND_PORT: "3000"
       LISTEN_PORT: "3000"
+      ALLOWED_EXTENSIONS: "js,css,png,ico,svg,jpg,jpeg,gif,woff,woff2,ttf,eot"
     depends_on:
       - yunderagithubcompilerapp
     networks:
