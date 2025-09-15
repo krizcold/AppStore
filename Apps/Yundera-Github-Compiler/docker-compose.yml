@@ -69,8 +69,7 @@ services:
       REF_SEPARATOR: $REF_SEPARATOR
       
       # Debug/logging settings (unused - set to blank)
-      LOG_APPS_BEACON: ""
-      
+      LOG_APPS_BEACON: ""      
       
       # Legacy variables (unused - set to blank)
       user: ""
@@ -153,7 +152,7 @@ x-casaos:
     en_us: "Yundera GitHub Compiler"
   store_app_id: yunderagithubcompiler
   is_uncontrolled: false
-  index: /
+  index: /?hash=$AUTH_HASH
   webui_port: 3000
   pre-install-cmd: |
     mkdir -p /DATA/AppData/yunderagithubcompiler/{repos,uidata} 2>/dev/null
