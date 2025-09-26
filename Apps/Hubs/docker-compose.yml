@@ -1,0 +1,218 @@
+name: hubs
+
+services:
+  db:
+    image: postgres:14-alpine
+    container_name: hubs-db
+    restart: unless-stopped
+    user: postgres
+    cpu_shares: 1024
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: ret_dev
+      PUID: $PUID
+      PGID: $PGID
+      TZ: $TZ
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    expose:
+      - 5432
+    volumes:
+      - /DATA/AppData/hubs/pgdata:/var/lib/postgresql/data
+
+  hubs-admin:
+    image: mashad6/hubs-compose-hubs-admin:v2
+    container_name: hubs-admin
+    restart: unless-stopped
+    cpu_shares: 1024
+    environment:
+      INTERNAL_HOSTNAME: hubs-admin
+      PUID: $PUID
+      PGID: $PGID
+      TZ: $TZ
+    healthcheck:
+      test: ["CMD", "curl", "-fk", "https://localhost:8989/admin.html"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 120s
+    expose:
+      - 8989
+    depends_on:
+      - db
+      - reticulum
+
+  hubs:
+    image: mashad6/hubs-compose-hubs-client:v2
+    container_name: hubs
+    restart: unless-stopped
+    cpu_shares: 1024
+    environment:
+      INTERNAL_HOSTNAME: hubs
+      PUID: $PUID
+      PGID: $PGID
+      TZ: $TZ
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 8080 || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 300s
+    expose:
+      - 8080
+    depends_on:
+      db:
+        condition: service_healthy
+      reticulum:
+        condition: service_healthy
+
+  dialog:
+    image: mashad6/hubs-compose-dialog
+    container_name: hubs-dialog
+    restart: unless-stopped
+    cpu_shares: 1024
+    environment:
+      AUTH_KEY: /etc/perms.pub.pem
+      HTTPS_CERT_FULLCHAIN: /etc/ssl/fullchain.pem
+      HTTPS_CERT_PRIVKEY: /etc/ssl/privkey.pem
+      INTERACTIVE: "false"
+      MEDIASOUP_MIN_PORT: 40000
+      MEDIASOUP_MAX_PORT: 40050
+      MEDIASOUP_ANNOUNCED_IP: ${PRIVATE_NETWORK_IP:-127.0.0.1}
+      PUID: $PUID
+      PGID: $PGID
+      TZ: $TZ
+    expose:
+      - 4443
+    ports:
+      - "40000-40050:40000-40050"
+      - "40000-40050:40000-40050/udp"
+
+  postgrest:
+    image: mashad6/hubs-compose-postgrest
+    container_name: hubs-postgrest
+    restart: unless-stopped
+    cpu_shares: 1024
+    environment:
+      PUID: $PUID
+      PGID: $PGID
+      TZ: $TZ
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - db
+    expose:
+      - 3000
+
+  reticulum:
+    image: mashad6/hubs-compose-reticulum
+    container_name: hubs-reticulum
+    restart: unless-stopped
+    cpu_shares: 1024
+    environment:
+      DB_CREDENTIALS: postgres
+      DB_HOST: db
+      DB_NAME: ret_dev
+      DIALOG_HOSTNAME: "dialog"
+      DIALOG_PORT: 4443
+      HUBS_ADMIN_INTERNAL_HOSTNAME: hubs-admin
+      HUBS_CLIENT_INTERNAL_HOSTNAME: hubs-client
+      POSTGREST_INTERNAL_HOSTNAME: postgrest
+      SPOKE_INTERNAL_HOSTNAME: spoke
+      PUID: $PUID
+      PGID: $PGID
+      TZ: $TZ
+    healthcheck:
+      test: ["CMD", "sh", "-c", "pgrep beam.smp > /dev/null && echo 'Elixir process running'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    expose:
+      - 4000
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - /DATA/AppData/hubs/retstorage:/code/storage/dev
+
+  spoke:
+    image: mashad6/hubs-compose-spoke
+    container_name: hubs-spoke
+    restart: unless-stopped
+    cpu_shares: 1024
+    environment:
+      CORS_PROXY_SERVER: "reticulum:4000"
+      INTERNAL_HOSTNAME: spoke
+      PUID: $PUID
+      PGID: $PGID
+      TZ: $TZ
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    expose:
+      - 9090
+    depends_on:
+      - reticulum
+
+networks:
+  default:
+    name: mozilla-hubs
+
+x-casaos:
+  # 1. Port and path to the app WebUI
+  #8080-hubs-<user>.nsl.sh
+  main: hubs
+  webui_port: 8080
+  index: "/"
+
+  architectures: [amd64, arm64]
+
+  # Asset URLs
+  icon: https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/Hubs/icon.png
+  thumbnail: https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/Hubs/thumbnail.png
+  screenshots:
+    - https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/Hubs/screenshot-1.png
+    - https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/Hubs/screenshot-2.png
+    - https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/Hubs/screenshot-3.png
+
+  # 4. Other optional configurations
+  title:
+    en_us: Mozilla Hubs
+  tagline:
+    en_us: Virtual collaboration spaces for everyone
+  description:
+    en_us: |
+      Mozilla Hubs is a social VR platform that runs in your browser. Create virtual rooms where you can hang out with friends, hold meetings, or attend events. This deployment includes the complete Hubs stack: client, admin panel, backend services, and voice/video infrastructure.
+  developer: mashad6
+  category: Communication
+
+  # Environment variables that may need configuration
+  environment:
+    PRIVATE_NETWORK_IP: "${PRIVATE_NETWORK_IP:-127.0.0.1}"
+    POSTGRES_PASSWORD: "postgres"
+
+  tips:
+    before_install:
+      en_us: |
+        Configuration Details:
+        1. WebUI: Main app accessible at port 8080, path "/"
+        2. Volumes: /DATA/AppData/hubs/pgdata (PostgreSQL) and /DATA/AppData/hubs/retstorage (Reticulum)
+        3. Main port: 8080, Dialog voice/video uses ports 40000-40050
+        4. Set PRIVATE_NETWORK_IP environment variable for voice/video functionality
+
+        Access points:
+        - Main app: https://yourdomain:8080
+        - Admin panel: https://yourdomain:8989/admin.html

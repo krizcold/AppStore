@@ -1,0 +1,152 @@
+name: funkwhale
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: funkwhale-postgres
+    cpu_shares: 20
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+    environment:
+      POSTGRES_DB: funkwhale
+      POSTGRES_USER: funkwhale
+      POSTGRES_PASSWORD: funkwhale
+      TZ: ${TZ:-UTC}
+    volumes:
+      - /DATA/AppData/funkwhale/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - funkwhale
+
+  redis:
+    image: redis:7-alpine
+    container_name: funkwhale-redis
+    cpu_shares: 10
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.1'
+    environment:
+      TZ: ${TZ:-UTC}
+    restart: unless-stopped
+    networks:
+      - funkwhale
+
+  api:
+    image: funkwhale/api:1.4.0
+    container_name: funkwhale-api
+    cpu_shares: 40
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+          cpus: '0.5'
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      FUNKWHALE_HOSTNAME: ${domain:-localhost}
+      FUNKWHALE_PROTOCOL: https
+      DATABASE_URL: postgresql://funkwhale:funkwhale@postgres:5432/funkwhale
+      CACHE_URL: redis://redis:6379/0
+      DJANGO_SECRET_KEY: ${default_pwd:-funkwhale-secret-key-change-me-please}
+      MEDIA_URL: https://${domain:-localhost}/media/
+      STATIC_URL: https://${domain:-localhost}/staticfiles/
+      TZ: ${TZ:-UTC}
+      NESTED_PROXY: 1
+    volumes:
+      - /DATA/AppData/funkwhale/data:/data
+      - /DATA/AppData/funkwhale/music:/music:ro
+      - /DATA/Media/:/import:ro
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    networks:
+      - funkwhale
+
+  front:
+    image: funkwhale/front:1.4.0
+    container_name: funkwhale-front
+    cpu_shares: 30
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+    depends_on:
+      - api
+    environment:
+      TZ: ${TZ:-UTC}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    expose:
+      - 80
+    restart: unless-stopped
+    networks:
+      - funkwhale
+
+networks:
+  funkwhale:
+    name: funkwhale
+
+x-casaos:
+  main: front
+  webui_port: 80
+  index: /
+
+  icon: https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/Funkwhale/icon.png
+  screenshot_link:
+    - https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/Funkwhale/screenshot-1.png
+    - https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/Funkwhale/screenshot-2.png
+    - https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/Funkwhale/screenshot-3.png
+
+  architectures:
+    - amd64
+    - arm64
+  store_app_id: funkwhale
+  category: Media
+  author: Worph
+  developer: funkwhale-audio
+  description:
+    en_us: |
+      Funkwhale is a modern, self-hosted, free and open-source music server that lets you stream your personal audio collection anywhere.
+
+      **Key Features:**
+      * **Self-hosted music streaming** - Host your own music library with complete control
+      * **Web-based player** - Beautiful interface for browsing and playing your music
+      * **User management** - Create multiple users with separate libraries and permissions
+      * **Playlist support** - Create and manage custom playlists
+      * **Federation support** - Connect with other Funkwhale instances via ActivityPub
+      * **Import flexibility** - Upload music files or import from existing collections
+      * **Mobile friendly** - Responsive design works great on phones and tablets
+
+      **Perfect for:**
+      * Music enthusiasts who want to own their collection
+      * Families sharing a music library
+      * Anyone seeking privacy from streaming services
+      * Users wanting to discover music through federation
+
+      Funkwhale runs beautifully on your Yundera server with HTTPS access via `https://funkwhale-username.nsl.sh`. Your music stays **yours forever** while being accessible from anywhere.
+
+      After installation, upload your music files to `/DATA/AppData/funkwhale/music/` or import from `/DATA/Media/` to build your library.
+  tagline:
+    en_us: Your Personal Music Streaming Server
+  title:
+    en_us: Funkwhale
+  tips:
+    before_install:
+      en_us: |
+        **Setup Information:**
+
+        🎵 **Music Import**: After installation, place your music files in `/DATA/AppData/funkwhale/music/` or use the import feature to scan `/DATA/Media/`.
+
+        ⏰ **Startup Time**: Funkwhale takes about 3-5 minutes to fully initialize and run database migrations on first startup.
+
+        👤 **Admin Account**: Create your admin account through the web interface on first visit.
+
+        📱 **Mobile Access**: Funkwhale works great on mobile browsers and has companion apps available.
+
+        🔧 **Configuration**: The service includes PostgreSQL database, Redis cache, and Nginx proxy for optimal performance.

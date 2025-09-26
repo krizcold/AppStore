@@ -1,27 +1,16 @@
 name: rclone
 services:
   rclone:
-    image: rclone/rclone:latest
+    user: $PUID:$PGID
+    image: rclone/rclone:1.70.3
     container_name: rclone
     hostname: rclone
     restart: unless-stopped
-    x-casaos:
-      volumes:
-        - container: /config/rclone
-          description:
-            en_us: Contains Rclone configuration files
-        - container: /cache
-          description:
-            en_us: Cache directory for improved performance
-        - container: /data
-          description:
-            en_us: Mount point for your remote storage
     expose:
-      - 8080
+      - 80
     volumes:
-      - /DATA/AppData/rclone/config:/config/rclone
-      - /DATA/AppData/rclone/cache:/cache
-      - /DATA/AppData/rclone/mount:/data:shared
+      - /DATA/AppData/rclone/config/:/config/rclone/
+      - /DATA/Rclone/:/data/:rshared,z
       - /etc/passwd:/etc/passwd:ro
       - /etc/group:/etc/group:ro
       - /etc/fuse.conf:/etc/fuse.conf:ro
@@ -33,8 +22,20 @@ services:
     devices:
       - /dev/fuse:/dev/fuse:rwm
     command:
-      - rcd --rc-web-gui --rc-addr :8080 --rc-user admin --rc-pass $default_pwd --rc-allow-origin * --config /config/rclone/rclone.conf --cache-dir /cache
-
+      - rcd
+      - --rc-web-gui
+      - --rc-addr
+      - :80
+      - --rc-user
+      - admin
+      - --rc-pass
+      - $default_pwd
+      - --rc-allow-origin
+      - "*"
+      - --config
+      - /config/rclone/rclone.conf
+      - --cache-dir
+      - /cache
 x-casaos:
   architectures:
     - amd64
@@ -65,5 +66,44 @@ x-casaos:
   category: Storage
   title:
     en_us: Rclone
+  tips:
+    before_install:
+      en_us: |
+        **Setup Steps**:
+        1. **Configure Remote**: Use "Config" to add your cloud storage (Google Drive, OneDrive, etc.)
+        2. **Verify Connection**: Use "Explorer" to browse and test access to your remote files
+        3. **Mount Remote**: Use "Mount" to mount your remote to `/data` path
+        
+        **Important**: After mounting, files will be accessible at `/DATA/Rclone/` on your host system and to other containers.
+        
+        **Mount Configuration**:
+        - Always mount remotes to `/data` inside the rclone web UI
+        - This maps to `/DATA/Rclone/` on your CasaOS system
+        - Files will be accessible to other containers that mount this directory
+        - Other apps can access your cloud files by mounting `/DATA/Rclone/`
+        
+        **Virtual Files Setup (OneDrive/Dropbox style)**:
+        For virtual files that download on-demand (like cloud sync clients):
+        - **VFS Cache Mode**: Set to `minimal` for virtual files or `writes` for better performance
+        - **VFS Cache Max Size**: Set based on available disk space (e.g., `10G` or `50G`)
+        - **VFS Cache Max Age**: How long to keep cached files (e.g., `24h` or `168h` for 1 week)
+        - **VFS Read Chunk Size**: Use `128M` for faster streaming of large files
+        - **VFS Cache Poll Interval**: Set to `15s` to check for remote changes
+        - **Mount Options**: Add `--allow-other` to make files accessible to other containers
+        
+        **Recommended Settings for Virtual Files**:
+        ```
+        VFS Cache Mode: minimal
+        VFS Cache Max Size: 10G
+        VFS Cache Max Age: 168h
+        VFS Read Chunk Size: 128M
+        VFS Cache Poll Interval: 15s
+        Mount Options: --allow-other
+        ```
+        
+        **Default Account**:
+        | Username | Password |
+        |----------|----------|
+        | `admin`  | `$default_pwd` |
   main: rclone
-  webui_port: 8080
+  webui_port: 80
