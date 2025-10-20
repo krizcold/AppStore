@@ -1,7 +1,7 @@
-name: vaultwarden
+name: vaultwardentest
 
 services:
-  vaultwarden:
+  vaultwardentest:
     image: vaultwarden/server:1.34.3
     user: $PUID:$PGID
     deploy:
@@ -48,7 +48,7 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  main: vaultwarden
+  main: vaultwardentest
   author: Yundera Team
   category: Utilities
   description:
