@@ -1,9 +1,9 @@
 name: stremio
 
 services:
-  stremio-server:
+  stremioserver:
     image: stremio/server:latest
-    container_name: stremio-server
+    container_name: stremioserver
     restart: unless-stopped
     expose:
       - 11470
@@ -22,9 +22,9 @@ services:
           description:
             en_us: "Stremio server configuration and data"
 
-  stremio-web:
+  stremioweb:
     image: nginx:alpine
-    container_name: stremio-web
+    container_name: stremioweb
     restart: unless-stopped
     user: "0:0"
     expose:
@@ -43,47 +43,43 @@ services:
       - /var/run
     privileged: true
     depends_on:
-      - stremio-server
+      - stremioserver
     networks:
       - pcs
 
-  stremio-auth:
-    image: quay.io/oauth2-proxy/oauth2-proxy:latest
-    container_name: stremio-auth
+  stremioauth:
+    image: nginx:alpine
+    container_name: stremioauth
     restart: unless-stopped
     user: "0:0"
-    entrypoint: ["/startup/startup.sh"]
-    environment:
-      STREMIO_PASSWORD: "$default_pwd"
     expose:
-      - 8080
-    command:
-      - --provider=htpasswd
-      - --htpasswd-file=/htpasswd/.htpasswd
-      - --display-htpasswd-form=true
-      - --upstream=http://stremio-web:8080
-      - --http-address=0.0.0.0:8080
-      - --cookie-secret-file=/htpasswd/.cookie-secret
-      - --cookie-secure=false
-      - --reverse-proxy=true
-      - --email-domain=*
+      - 80
+    environment:
+      AUTH_PASSWORD: "$default_pwd"
+      UPSTREAM: "http://stremioweb:8080"
+    entrypoint: ["/docker-entrypoint.sh"]
+    command: ["nginx", "-g", "daemon off;"]
     volumes:
       - type: bind
-        source: $DATA_ROOT/AppData/stremio/auth
-        target: /htpasswd
-      - type: bind
-        source: $DATA_ROOT/AppData/stremio/startup
-        target: /startup
+        source: $DATA_ROOT/AppData/stremio/auth-entrypoint.sh
+        target: /docker-entrypoint.sh
         read_only: true
+      - type: bind
+        source: $DATA_ROOT/AppData/stremio/auth-nginx.conf
+        target: /etc/nginx/nginx.conf.template
+        read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
     depends_on:
-      - stremio-web
+      - stremioweb
     networks:
       - pcs
     x-casaos:
       envs:
-        - container: STREMIO_PASSWORD
+        - container: AUTH_PASSWORD
           description:
-            en_us: "Password for 'admin' user. Change this to update your login password."
+            en_us: "Password for 'admin' user. Changes apply on container restart."
 
 networks:
   pcs:
@@ -93,7 +89,7 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  main: stremio-auth
+  main: stremioauth
   author: Stremio
   developer: Stremio
   icon: https://www.stremio.com/website/stremio-logo-small.png
@@ -101,7 +97,7 @@ x-casaos:
     en_us: "Stream movies, series, live TV, and more"
   category: Entertainment
   description:
-    en_us: "Stremio is a modern media center that gives you the freedom to watch everything you want. Multi-container setup with official Stremio server and web UI."
+    en_us: "Stremio is a modern media center that gives you the freedom to watch everything you want. Multi-container setup with official Stremio server and web UI with password protection."
   tips:
     before_install:
       en_us: |
@@ -114,17 +110,16 @@ x-casaos:
 
         💡 To change the password:
         1. Go to App Settings → Environment Variables
-        2. Edit STREMIO_PASSWORD to your new password
-        3. Save and restart the app
-        4. Your new password will be active immediately!
+        2. Edit AUTH_PASSWORD to your new password
+        3. Save and restart - new password active immediately!
   title:
     en_us: "Stremio"
   store_app_id: stremio
   is_uncontrolled: false
   index: /
-  webui_port: 8080
+  webui_port: 80
   pre-install-cmd: |
-    mkdir -p /DATA/AppData/stremio/{config,web,auth,startup} 2>/dev/null || true
+    mkdir -p /DATA/AppData/stremio/{config,web} 2>/dev/null || true
     chmod -R 755 /DATA/AppData/stremio/ 2>/dev/null || true
 
     # Download Stremio Web UI (official release v5.0.0-beta.27)
@@ -143,6 +138,42 @@ x-casaos:
       # Inject auto-configuration script (runs once on first load)
       sed -i 's|</head>|<script>if(!localStorage.getItem("stremio_configured")){fetch("/localStorage.json").then(r=>r.text()).then(data=>{localStorage.clear();const parsed=JSON.parse(data.replaceAll("DYNAMIC_SERVER_URL_PLACEHOLDER",window.location.origin+"/"));Object.keys(parsed).forEach(key=>localStorage.setItem(key,JSON.stringify(parsed[key])));localStorage.setItem("stremio_configured","true");console.log("Stremio configured for:",window.location.origin);window.location.reload()})}</script></head>|' /DATA/AppData/stremio/web/build/index.html
     fi
+
+    # Create auth entrypoint script
+    cat > /DATA/AppData/stremio/auth-entrypoint.sh <<'AUTHSCRIPT'
+    #!/bin/sh
+    set -e
+    apk add --no-cache apache2-utils
+    htpasswd -nbB admin "${AUTH_PASSWORD}" > /etc/nginx/.htpasswd
+    envsubst '${UPSTREAM}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+    exec "$@"
+    AUTHSCRIPT
+    chmod +x /DATA/AppData/stremio/auth-entrypoint.sh
+
+    # Create auth nginx config template
+    cat > /DATA/AppData/stremio/auth-nginx.conf <<'AUTHCONF'
+    worker_processes auto;
+    error_log /dev/stderr warn;
+    pid /var/run/nginx.pid;
+    events {
+        worker_connections 1024;
+    }
+    http {
+        server {
+            listen 80;
+            auth_basic "Stremio Login";
+            auth_basic_user_file /etc/nginx/.htpasswd;
+            location / {
+                proxy_pass ${UPSTREAM};
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection 'upgrade';
+                proxy_set_header Host $host;
+                proxy_cache_bypass $http_upgrade;
+            }
+        }
+    }
+    AUTHCONF
 
     # Create nginx reverse proxy configuration
     if [ ! -f "/DATA/AppData/stremio/nginx.conf" ]; then
@@ -192,7 +223,7 @@ x-casaos:
 
             # Proxy everything else to stremio-server
             location @backend {
-                proxy_pass http://stremio-server:11470;
+                proxy_pass http://stremioserver:11470;
                 proxy_http_version 1.1;
                 proxy_set_header Upgrade $http_upgrade;
                 proxy_set_header Connection 'upgrade';
@@ -205,33 +236,3 @@ x-casaos:
     }
     EOF
     fi
-
-    # Create startup script that regenerates htpasswd on every container start
-    cat > /DATA/AppData/stremio/startup/startup.sh <<'SCRIPT'
-    #!/bin/sh
-    set -e
-
-    echo "Stremio Auth: Updating password from environment variable..."
-
-    # Install apache2-utils if not available (provides htpasswd command)
-    if ! command -v htpasswd >/dev/null 2>&1; then
-        echo "Installing apache2-utils..."
-        apk add --no-cache apache2-utils
-    fi
-
-    # Generate htpasswd file using STREMIO_PASSWORD environment variable
-    htpasswd -nbB admin "${STREMIO_PASSWORD}" > /htpasswd/.htpasswd
-    chmod 644 /htpasswd/.htpasswd
-
-    echo "Password updated. Starting oauth2-proxy..."
-
-    # Start oauth2-proxy with all command arguments
-    exec /bin/oauth2-proxy "$@"
-    SCRIPT
-        chmod +x /DATA/AppData/stremio/startup/startup.sh
-
-        # Generate cookie secret for session management
-        if [ ! -f "/DATA/AppData/stremio/auth/.cookie-secret" ]; then
-          dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n' | tr -- '+/' '-_' > /DATA/AppData/stremio/auth/.cookie-secret
-          chmod 644 /DATA/AppData/stremio/auth/.cookie-secret
-        fi
