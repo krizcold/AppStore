@@ -1,0 +1,237 @@
+name: stremio
+
+services:
+  stremio-server:
+    image: stremio/server:latest
+    container_name: stremio-server
+    restart: unless-stopped
+    expose:
+      - 11470
+    environment:
+      NO_CORS: "1"
+      APP_PATH: "/root/.stremio-server"
+    volumes:
+      - type: bind
+        source: $DATA_ROOT/AppData/stremio/config
+        target: /root/.stremio-server
+    networks:
+      - pcs
+    x-casaos:
+      volumes:
+        - container: /root/.stremio-server
+          description:
+            en_us: "Stremio server configuration and data"
+
+  stremio-web:
+    image: nginx:alpine
+    container_name: stremio-web
+    restart: unless-stopped
+    user: "0:0"
+    expose:
+      - 8080
+    volumes:
+      - type: bind
+        source: $DATA_ROOT/AppData/stremio/nginx.conf
+        target: /etc/nginx/nginx.conf
+        read_only: true
+      - type: bind
+        source: $DATA_ROOT/AppData/stremio/web/build
+        target: /usr/share/nginx/html
+        read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+    privileged: true
+    depends_on:
+      - stremio-server
+    networks:
+      - pcs
+
+  stremio-auth:
+    image: quay.io/oauth2-proxy/oauth2-proxy:latest
+    container_name: stremio-auth
+    restart: unless-stopped
+    user: "0:0"
+    entrypoint: ["/startup/startup.sh"]
+    environment:
+      STREMIO_PASSWORD: "$default_pwd"
+    expose:
+      - 8080
+    command:
+      - --provider=htpasswd
+      - --htpasswd-file=/htpasswd/.htpasswd
+      - --display-htpasswd-form=true
+      - --upstream=http://stremio-web:8080
+      - --http-address=0.0.0.0:8080
+      - --cookie-secret-file=/htpasswd/.cookie-secret
+      - --cookie-secure=false
+      - --reverse-proxy=true
+      - --email-domain=*
+    volumes:
+      - type: bind
+        source: $DATA_ROOT/AppData/stremio/auth
+        target: /htpasswd
+      - type: bind
+        source: $DATA_ROOT/AppData/stremio/startup
+        target: /startup
+        read_only: true
+    depends_on:
+      - stremio-web
+    networks:
+      - pcs
+    x-casaos:
+      envs:
+        - container: STREMIO_PASSWORD
+          description:
+            en_us: "Password for 'admin' user. Change this to update your login password."
+
+networks:
+  pcs:
+    external: true
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: stremio-auth
+  author: Stremio
+  developer: Stremio
+  icon: https://www.stremio.com/website/stremio-logo-small.png
+  tagline:
+    en_us: "Stream movies, series, live TV, and more"
+  category: Entertainment
+  description:
+    en_us: "Stremio is a modern media center that gives you the freedom to watch everything you want. Multi-container setup with official Stremio server and web UI."
+  tips:
+    before_install:
+      en_us: |
+        Default Login Credentials
+        | Username   | Password       |
+        | --------   | ------------   |
+        | `admin`    | `$default_pwd` |
+
+        🔐 This app is password-protected using your PCS default password.
+
+        💡 To change the password:
+        1. Go to App Settings → Environment Variables
+        2. Edit STREMIO_PASSWORD to your new password
+        3. Save and restart the app
+        4. Your new password will be active immediately!
+  title:
+    en_us: "Stremio"
+  store_app_id: stremio
+  is_uncontrolled: false
+  index: /
+  webui_port: 8080
+  pre-install-cmd: |
+    mkdir -p /DATA/AppData/stremio/{config,web,auth,startup} 2>/dev/null || true
+    chmod -R 755 /DATA/AppData/stremio/ 2>/dev/null || true
+
+    # Download Stremio Web UI (official release v5.0.0-beta.27)
+    if [ ! -f "/DATA/AppData/stremio/web/build/index.html" ]; then
+      wget -q -O /tmp/stremio-web.zip https://github.com/Stremio/stremio-web/releases/download/v5.0.0-beta.27/stremio-web.zip || exit 1
+      unzip -q /tmp/stremio-web.zip -d /DATA/AppData/stremio/web/ || exit 1
+      rm /tmp/stremio-web.zip
+    fi
+
+    # Configure localStorage.json for automatic server URL detection
+    if [ -f "/DATA/AppData/stremio/web/build/index.html" ]; then
+      wget -q -O /DATA/AppData/stremio/localStorage.json https://raw.githubusercontent.com/tsaridas/stremio-docker/main/localStorage.json || exit 1
+      sed -i 's|http://127\.0\.0\.1:11470/|DYNAMIC_SERVER_URL_PLACEHOLDER|g' /DATA/AppData/stremio/localStorage.json
+      cp /DATA/AppData/stremio/localStorage.json /DATA/AppData/stremio/web/build/localStorage.json
+
+      # Inject auto-configuration script (runs once on first load)
+      sed -i 's|</head>|<script>if(!localStorage.getItem("stremio_configured")){fetch("/localStorage.json").then(r=>r.text()).then(data=>{localStorage.clear();const parsed=JSON.parse(data.replaceAll("DYNAMIC_SERVER_URL_PLACEHOLDER",window.location.origin+"/"));Object.keys(parsed).forEach(key=>localStorage.setItem(key,JSON.stringify(parsed[key])));localStorage.setItem("stremio_configured","true");console.log("Stremio configured for:",window.location.origin);window.location.reload()})}</script></head>|' /DATA/AppData/stremio/web/build/index.html
+    fi
+
+    # Create nginx reverse proxy configuration
+    if [ ! -f "/DATA/AppData/stremio/nginx.conf" ]; then
+      cat > /DATA/AppData/stremio/nginx.conf <<'EOF'
+    worker_processes auto;
+    error_log /dev/stderr warn;
+    pid /var/run/nginx.pid;
+
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+
+        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for"';
+
+        access_log /dev/stdout main;
+
+        sendfile on;
+        keepalive_timeout 65;
+
+        server {
+            listen 8080;
+            server_name _;
+
+            # Serve static files from stremio-web
+            location ~ \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|map|json)$ {
+                root /usr/share/nginx/html;
+                try_files $uri =404;
+            }
+
+            # Serve index.html for root
+            location = / {
+                root /usr/share/nginx/html;
+                try_files /index.html =404;
+            }
+
+            # Serve other HTML files and directories, or proxy to backend
+            location / {
+                root /usr/share/nginx/html;
+                try_files $uri @backend;
+            }
+
+            # Proxy everything else to stremio-server
+            location @backend {
+                proxy_pass http://stremio-server:11470;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection 'upgrade';
+                proxy_set_header Host $host;
+                proxy_cache_bypass $http_upgrade;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+        }
+    }
+    EOF
+    fi
+
+    # Create startup script that regenerates htpasswd on every container start
+    cat > /DATA/AppData/stremio/startup/startup.sh <<'SCRIPT'
+    #!/bin/sh
+    set -e
+
+    echo "Stremio Auth: Updating password from environment variable..."
+
+    # Install apache2-utils if not available (provides htpasswd command)
+    if ! command -v htpasswd >/dev/null 2>&1; then
+        echo "Installing apache2-utils..."
+        apk add --no-cache apache2-utils
+    fi
+
+    # Generate htpasswd file using STREMIO_PASSWORD environment variable
+    htpasswd -nbB admin "${STREMIO_PASSWORD}" > /htpasswd/.htpasswd
+    chmod 644 /htpasswd/.htpasswd
+
+    echo "Password updated. Starting oauth2-proxy..."
+
+    # Start oauth2-proxy with all command arguments
+    exec /bin/oauth2-proxy "$@"
+    SCRIPT
+        chmod +x /DATA/AppData/stremio/startup/startup.sh
+
+        # Generate cookie secret for session management
+        if [ ! -f "/DATA/AppData/stremio/auth/.cookie-secret" ]; then
+          dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n' | tr -- '+/' '-_' > /DATA/AppData/stremio/auth/.cookie-secret
+          chmod 644 /DATA/AppData/stremio/auth/.cookie-secret
+        fi
