@@ -11,10 +11,10 @@ services:
       CLIENT_ID: 'REPLACE WITH THE BOT CLIENT ID'
     volumes:
       - type: bind
-        source: $DATA_ROOT/AppData/typescriptmodulardiscordbot/smdb-source
+        source: '$DATA_ROOT/AppData/typescriptmodulardiscordbot/smdb-source'
         target: /app/smdb-source
       - type: bind
-        source: $DATA_ROOT/AppData/typescriptmodulardiscordbot/data
+        source: '$DATA_ROOT/AppData/typescriptmodulardiscordbot/data'
         target: /data
     network_mode: bridge
     expose:
