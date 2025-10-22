@@ -11,16 +11,16 @@ services:
       CLIENT_ID: 'REPLACE WITH THE BOT CLIENT ID'
     volumes:
       - type: bind
-        source: $DATA_ROOT/AppData/typescriptmodulardiscordbot/smdb-source
+        source: /$DATA_ROOT/AppData/typescriptmodulardiscordbot/smdb-source
         target: /app/smdb-source
       - type: bind
-        source: $DATA_ROOT/AppData/typescriptmodulardiscordbot/data
+        source: /$DATA_ROOT/AppData/typescriptmodulardiscordbot/data
         target: /data
       - type: bind
-        source: /$DATA_ROOT/AppData/typescriptmodulardiscordbot/localtime
+        source: $DATA_ROOT/AppData/typescriptmodulardiscordbot/localtime
         target: /etc/localtime
       - type: bind
-        source: /etc/timezone/$REF_NET
+        source: "$REF_NET/etc/timezone/"
         target: /etc/timezone
     network_mode: bridge
     expose:
