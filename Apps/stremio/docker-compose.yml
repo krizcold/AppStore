@@ -47,40 +47,6 @@ services:
     networks:
       - pcs
 
-  stremioauth:
-    image: nginx:alpine
-    container_name: stremioauth
-    restart: unless-stopped
-    user: "0:0"
-    expose:
-      - 80
-    environment:
-      AUTH_PASSWORD: "$default_pwd"
-      UPSTREAM: "http://stremioweb:8080"
-    entrypoint: ["/docker-entrypoint.sh"]
-    command: ["nginx", "-g", "daemon off;"]
-    volumes:
-      - type: bind
-        source: $DATA_ROOT/AppData/stremio/auth-entrypoint.sh
-        target: /docker-entrypoint.sh
-        read_only: true
-      - type: bind
-        source: $DATA_ROOT/AppData/stremio/auth-nginx.conf
-        target: /etc/nginx/nginx.conf.template
-        read_only: true
-    tmpfs:
-      - /var/cache/nginx
-      - /var/run
-    depends_on:
-      - stremioweb
-    networks:
-      - pcs
-    x-casaos:
-      envs:
-        - container: AUTH_PASSWORD
-          description:
-            en_us: "Password for 'admin' user. Changes apply on container restart."
-
 networks:
   pcs:
     external: true
@@ -89,7 +55,7 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  main: stremioauth
+  main: stremioweb
   author: Stremio
   developer: Stremio
   icon: https://www.stremio.com/website/stremio-logo-small.png
@@ -97,27 +63,13 @@ x-casaos:
     en_us: "Stream movies, series, live TV, and more"
   category: Entertainment
   description:
-    en_us: "Stremio is a modern media center that gives you the freedom to watch everything you want. Multi-container setup with official Stremio server and web UI with password protection."
-  tips:
-    before_install:
-      en_us: |
-        Default Login Credentials
-        | Username   | Password       |
-        | --------   | ------------   |
-        | `admin`    | `$default_pwd` |
-
-        🔐 This app is password-protected using your PCS default password.
-
-        💡 To change the password:
-        1. Go to App Settings → Environment Variables
-        2. Edit AUTH_PASSWORD to your new password
-        3. Save and restart - new password active immediately!
+    en_us: "Stremio is a modern media center that gives you the freedom to watch everything you want. Multi-container setup with official Stremio server and web UI."
   title:
     en_us: "Stremio"
   store_app_id: stremio
   is_uncontrolled: false
   index: /
-  webui_port: 80
+  webui_port: 8080
   pre-install-cmd: |
     mkdir -p /DATA/AppData/stremio/{config,web} 2>/dev/null || true
     chmod -R 755 /DATA/AppData/stremio/ 2>/dev/null || true
@@ -138,42 +90,6 @@ x-casaos:
       # Inject auto-configuration script (runs once on first load)
       sed -i 's|</head>|<script>if(!localStorage.getItem("stremio_configured")){fetch("/localStorage.json").then(r=>r.text()).then(data=>{localStorage.clear();const parsed=JSON.parse(data.replaceAll("DYNAMIC_SERVER_URL_PLACEHOLDER",window.location.origin+"/"));Object.keys(parsed).forEach(key=>localStorage.setItem(key,JSON.stringify(parsed[key])));localStorage.setItem("stremio_configured","true");console.log("Stremio configured for:",window.location.origin);window.location.reload()})}</script></head>|' /DATA/AppData/stremio/web/build/index.html
     fi
-
-    # Create auth entrypoint script
-    cat > /DATA/AppData/stremio/auth-entrypoint.sh <<'AUTHSCRIPT'
-    #!/bin/sh
-    set -e
-    apk add --no-cache apache2-utils
-    htpasswd -nbB admin "${AUTH_PASSWORD}" > /etc/nginx/.htpasswd
-    envsubst '${UPSTREAM}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
-    exec "$@"
-    AUTHSCRIPT
-    chmod +x /DATA/AppData/stremio/auth-entrypoint.sh
-
-    # Create auth nginx config template
-    cat > /DATA/AppData/stremio/auth-nginx.conf <<'AUTHCONF'
-    worker_processes auto;
-    error_log /dev/stderr warn;
-    pid /var/run/nginx.pid;
-    events {
-        worker_connections 1024;
-    }
-    http {
-        server {
-            listen 80;
-            auth_basic "Stremio Login";
-            auth_basic_user_file /etc/nginx/.htpasswd;
-            location / {
-                proxy_pass ${UPSTREAM};
-                proxy_http_version 1.1;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection 'upgrade';
-                proxy_set_header Host $host;
-                proxy_cache_bypass $http_upgrade;
-            }
-        }
-    }
-    AUTHCONF
 
     # Create nginx reverse proxy configuration
     if [ ! -f "/DATA/AppData/stremio/nginx.conf" ]; then
