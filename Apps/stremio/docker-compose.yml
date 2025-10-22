@@ -1,4 +1,4 @@
-name: stremio
+name: stremioweb
 
 services:
   stremioserver:
@@ -66,7 +66,7 @@ x-casaos:
     en_us: "Stremio is a modern media center that gives you the freedom to watch everything you want. Multi-container setup with official Stremio server and web UI."
   title:
     en_us: "Stremio"
-  store_app_id: stremio
+  store_app_id: stremioweb
   is_uncontrolled: false
   index: /
   webui_port: 8080
