@@ -1,4 +1,4 @@
-name: stremioweb
+name: stremio
 
 services:
   stremioserver:
@@ -27,8 +27,6 @@ services:
     container_name: stremioweb
     restart: unless-stopped
     user: "0:0"
-    expose:
-      - 8080
     volumes:
       - type: bind
         source: $DATA_ROOT/AppData/stremio/nginx.conf
@@ -47,6 +45,43 @@ services:
     networks:
       - pcs
 
+  authproxy:
+    image: krizcold/nginxhashlock:dev
+    container_name: stremioauth
+    restart: unless-stopped
+    user: "root"
+    privileged: true
+    expose:
+      - 3000
+    environment:
+      AUTH_HASH: $AUTH_HASH
+      USER: "admin"
+      PASSWORD: "stremio"
+      SESSION_DURATION_HOURS: "720"
+      BACKEND_HOST: "stremioweb"
+      BACKEND_PORT: "8080"
+      LISTEN_PORT: "3000"
+      ALLOWED_EXTENSIONS: "js,css,png,jpg,jpeg,gif,ico,svg,woff,woff2,ttf,eot,webp,map,json,wasm,html"
+      ALLOWED_PATHS: "settings,casting,network-info,device-info"
+    depends_on:
+      - stremioweb
+    networks:
+      - pcs
+    x-casaos:
+      envs:
+        - container: USER
+          description:
+            en_us: "Authentication username (change this!)"
+        - container: PASSWORD
+          description:
+            en_us: "Authentication password (change this!)"
+        - container: SESSION_DURATION_HOURS
+          description:
+            en_us: "Session duration in hours (default: 720 = 30 days)"
+        - container: ALLOWED_PATHS
+          description:
+            en_us: "API paths allowed without auth (required for Stremio functionality)"
+
 networks:
   pcs:
     external: true
@@ -55,21 +90,21 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  main: stremioweb
+  main: authproxy
   author: Stremio
   developer: Stremio
   icon: https://www.stremio.com/website/stremio-logo-small.png
   tagline:
-    en_us: "Stream movies, series, live TV, and more"
+    en_us: "Stream movies, series, live TV, and more (password protected)"
   category: Entertainment
   description:
-    en_us: "Stremio is a modern media center that gives you the freedom to watch everything you want. Multi-container setup with official Stremio server and web UI."
+    en_us: "Stremio is a modern media center that gives you the freedom to watch everything you want. Multi-container setup with official Stremio server, web UI, and password protection. Default login: admin/stremio - Change password via environment variables in app settings."
   title:
     en_us: "Stremio"
-  store_app_id: stremioweb
+  store_app_id: stremio
   is_uncontrolled: false
-  index: /
-  webui_port: 8080
+  index: /?hash=$AUTH_HASH
+  webui_port: 3000
   pre-install-cmd: |
     mkdir -p /DATA/AppData/stremio/{config,web} 2>/dev/null || true
     chmod -R 755 /DATA/AppData/stremio/ 2>/dev/null || true
@@ -120,7 +155,7 @@ x-casaos:
             server_name _;
 
             # Serve static files from stremio-web
-            location ~ \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|map|json)$ {
+            location ~ \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|map|json|wasm|html)$ {
                 root /usr/share/nginx/html;
                 try_files $uri =404;
             }
