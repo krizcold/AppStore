@@ -63,6 +63,8 @@ services:
       LISTEN_PORT: "3000"
       ALLOWED_EXTENSIONS: "js,css,png,jpg,jpeg,gif,ico,svg,woff,woff2,ttf,eot,webp,map,json,wasm,html"
       ALLOWED_PATHS: "settings,casting,network-info,device-info"
+      PRESET_TYPE: "full"
+      PRESET_LANGUAGE: "en"
     depends_on:
       - stremioweb
     networks:
@@ -81,6 +83,12 @@ services:
         - container: ALLOWED_PATHS
           description:
             en_us: "API paths allowed without auth (required for Stremio functionality)"
+        - container: PRESET_TYPE
+          description:
+            en_us: "Addon preset level: minimal, standard, full, kids, factory (default: standard)"
+        - container: PRESET_LANGUAGE
+          description:
+            en_us: "Addon language: en, es, pt, fr, it, de (default: en)"
 
 networks:
   pcs:
@@ -100,7 +108,7 @@ x-casaos:
   description:
     en_us: "Stremio is a modern media center that gives you the freedom to watch everything you want. Multi-container setup with official Stremio server, web UI, and password protection. Default login: admin/stremio - Change password via environment variables in app settings."
   title:
-    en_us: "Stremio"
+    en_us: "Stremio+"
   store_app_id: stremio
   is_uncontrolled: false
   index: /?hash=$AUTH_HASH
@@ -122,8 +130,139 @@ x-casaos:
       sed -i 's|http://127\.0\.0\.1:11470/|DYNAMIC_SERVER_URL_PLACEHOLDER|g' /DATA/AppData/stremio/localStorage.json
       cp /DATA/AppData/stremio/localStorage.json /DATA/AppData/stremio/web/build/localStorage.json
 
-      # Inject auto-configuration script (runs once on first load)
-      sed -i 's|</head>|<script>if(!localStorage.getItem("stremio_configured")){fetch("/localStorage.json").then(r=>r.text()).then(data=>{localStorage.clear();const parsed=JSON.parse(data.replaceAll("DYNAMIC_SERVER_URL_PLACEHOLDER",window.location.origin+"/"));Object.keys(parsed).forEach(key=>localStorage.setItem(key,JSON.stringify(parsed[key])));localStorage.setItem("stremio_configured","true");console.log("Stremio configured for:",window.location.origin);window.location.reload()})}</script></head>|' /DATA/AppData/stremio/web/build/index.html
+      # Inject ORIGINAL working auto-configuration script PLUS addon preset loader
+      cat > /tmp/stremio-config-script.js <<'JSEOF'
+    // Always ensure base config and defaults on every page load (to guarantee parity)
+    (function() {
+      // Always fetch base config to get default addons (ensures defaults are never lost)
+      let defaultAddons = [];
+      const baseConfigPromise = fetch("/localStorage.json")
+        .then(r=>r.text())
+        .then(data=>{
+          const parsed=JSON.parse(data.replaceAll("DYNAMIC_SERVER_URL_PLACEHOLDER",window.location.origin+"/"));
+
+          // Apply config only once per session
+          if (!sessionStorage.getItem("stremio_base_loaded")) {
+            // If profile doesn't exist yet (first load), set everything including profile
+            const profileExists = localStorage.getItem('profile');
+
+            Object.keys(parsed).forEach(key => {
+              if (key !== 'profile') {
+                localStorage.setItem(key, JSON.stringify(parsed[key]));
+              } else if (!profileExists) {
+                // First load: set complete profile (includes streaming-server config)
+                localStorage.setItem('profile', JSON.stringify(parsed[key]));
+                console.log('[Stremio] Initialized profile with streaming-server config');
+              }
+            });
+
+            sessionStorage.setItem("stremio_base_loaded","true");
+            console.log("Stremio base config loaded for:",window.location.origin);
+          }
+
+          // Extract default addons to ensure they're always present
+          if (parsed.profile && parsed.profile.addons) {
+            defaultAddons = parsed.profile.addons;
+            console.log('[Stremio] Found', defaultAddons.length, 'default addons');
+          }
+        });
+
+      // AFTER base config, load addon preset (runs on EVERY page load to force shared addons)
+      baseConfigPromise.then(() => {
+        if(!sessionStorage.getItem("stremio_addons_loaded")){
+          return fetch('https://cdn.statically.io/gh/DryKillLogic/stremio-account-bootstrapper/main/public/preset.json')
+            .then(r => r.json())
+            .then(presetData => {
+          const presetType = 'full';
+          const presetLang = 'en';
+          const serverUrl = window.location.origin + '/';
+
+          if (presetData.presets && presetData.presets[presetType] && presetData.languages && presetData.languages[presetLang]) {
+            const addonList = presetData.presets[presetType];
+            const langData = presetData.languages[presetLang];
+            const addons = [];
+
+            addonList.forEach(addonId => {
+              if (langData[addonId]) {
+                const addonData = langData[addonId];
+                const manifest = { ...addonData.manifest };
+                const transportUrl = addonData.transportUrl || manifest.transportUrl || '';
+
+                // Skip addons with empty transportUrl
+                if (!transportUrl || transportUrl.trim() === '') {
+                  console.log('[Stremio] Skipping addon with empty transportUrl:', addonId);
+                  return;
+                }
+
+                addons.push({
+                  transportUrl: transportUrl.replace(/DYNAMIC_SERVER_URL_PLACEHOLDER/g, serverUrl),
+                  transportName: addonData.transportName || 'http',
+                  manifest: manifest,
+                  flags: addonData.flags || {}
+                });
+              }
+            });
+
+            // Merge defaults + existing + preset addons (always ensure defaults are present)
+            const profile = JSON.parse(localStorage.getItem('profile') || '{}');
+            const existingAddons = profile.addons || [];
+
+            // Create maps for deduplication and updates
+            const addonMap = new Map();
+
+            // 1. Start with default addons (ALWAYS present)
+            defaultAddons.forEach(addon => {
+              const addonId = addon.manifest?.id || addon.transportUrl;
+              if (addonId) addonMap.set(addonId, addon);
+            });
+
+            // 2. Add existing addons that aren't defaults (user additions)
+            existingAddons.forEach(addon => {
+              const addonId = addon.manifest?.id || addon.transportUrl;
+              if (addonId && !addonMap.has(addonId)) {
+                addonMap.set(addonId, addon);
+              }
+            });
+
+            // 3. Add/update with preset addons (replaces if exists, adds if new)
+            addons.forEach(addon => {
+              const addonId = addon.manifest?.id || addon.transportUrl;
+              if (addonId) {
+                addonMap.set(addonId, addon); // Update or add
+              }
+            });
+
+            const mergedAddons = Array.from(addonMap.values());
+
+            profile.addons = mergedAddons;
+            localStorage.setItem('profile', JSON.stringify(profile));
+
+              sessionStorage.setItem("stremio_addons_loaded","true");
+              console.log('[Stremio] Force-applied', presetType, 'preset with', addons.length, 'addons');
+            }
+          })
+          .catch(err => {
+            console.error('[Stremio] Failed to load preset:', err);
+          });
+        }
+      });
+    })();
+    JSEOF
+
+      # Inject the script into index.html before </head> using Python (handles minified HTML perfectly)
+      python3 <<'PYEOF'
+    with open('/DATA/AppData/stremio/web/build/index.html', 'r') as f:
+        html = f.read()
+    with open('/tmp/stremio-config-script.js', 'r') as f:
+        script = f.read()
+    # Replace first occurrence of </head> with script + </head>
+    html = html.replace('</head>', '<script>\n' + script + '\n</script>\n</head>', 1)
+    with open('/DATA/AppData/stremio/web/build/index.html', 'w') as f:
+        f.write(html)
+    print('[Pre-install] Script injected successfully')
+    PYEOF
+
+      rm /tmp/stremio-config-script.js
     fi
 
     # Create nginx reverse proxy configuration
