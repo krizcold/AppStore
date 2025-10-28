@@ -10,6 +10,8 @@ services:
     environment:
       NO_CORS: "1"
       APP_PATH: "/root/.stremio-server"
+      NODE_TLS_REJECT_UNAUTHORIZED: "0"
+      INTERNAL_URL: "http://stremioserver:11470"
     volumes:
       - type: bind
         source: $DATA_ROOT/AppData/stremio/config
@@ -36,6 +38,7 @@ services:
         source: $DATA_ROOT/AppData/stremio/web/build
         target: /usr/share/nginx/html
         read_only: true
+      - stremio_dynamic_paths:/tmp/dynamic_paths
     tmpfs:
       - /var/cache/nginx
       - /var/run
@@ -61,10 +64,14 @@ services:
       BACKEND_HOST: "stremioweb"
       BACKEND_PORT: "8080"
       LISTEN_PORT: "3000"
-      ALLOWED_EXTENSIONS: "js,css,png,jpg,jpeg,gif,ico,svg,woff,woff2,ttf,eot,webp,map,json,wasm,html"
-      ALLOWED_PATHS: "settings,casting,network-info,device-info"
+      ALLOWED_EXTENSIONS: "js,css,png,jpg,jpeg,gif,ico,svg,woff,woff2,ttf,eot,webp,map,json,wasm,html,m3u8,ts"
+      ALLOWED_PATHS: "settings,casting,network-info,device-info,hlsv2"
+      DYNAMIC_PATHS_FILE: "/tmp/dynamic_paths/allowed.txt"
+      DYNAMIC_PATHS_TTL: "300"
       PRESET_TYPE: "full"
       PRESET_LANGUAGE: "en"
+    volumes:
+      - stremio_dynamic_paths:/tmp/dynamic_paths
     depends_on:
       - stremioweb
     networks:
@@ -89,6 +96,10 @@ services:
         - container: PRESET_LANGUAGE
           description:
             en_us: "Addon language: en, es, pt, fr, it, de (default: en)"
+
+volumes:
+  stremio_dynamic_paths:
+    driver: local
 
 networks:
   pcs:
@@ -141,21 +152,21 @@ x-casaos:
         .then(data=>{
           const parsed=JSON.parse(data.replaceAll("DYNAMIC_SERVER_URL_PLACEHOLDER",window.location.origin+"/"));
 
-          // Apply config only once per session
+          // ALWAYS ensure critical config is set (streaming-server must always exist)
+          const profileExists = localStorage.getItem('profile');
+
+          Object.keys(parsed).forEach(key => {
+            if (key !== 'profile') {
+              // Always set non-profile keys (like streaming-server) to ensure they're never missing
+              localStorage.setItem(key, JSON.stringify(parsed[key]));
+            } else if (!profileExists && !sessionStorage.getItem("stremio_base_loaded")) {
+              // First load only: set complete profile (includes default addons)
+              localStorage.setItem('profile', JSON.stringify(parsed[key]));
+              console.log('[Stremio] Initialized profile with streaming-server config');
+            }
+          });
+
           if (!sessionStorage.getItem("stremio_base_loaded")) {
-            // If profile doesn't exist yet (first load), set everything including profile
-            const profileExists = localStorage.getItem('profile');
-
-            Object.keys(parsed).forEach(key => {
-              if (key !== 'profile') {
-                localStorage.setItem(key, JSON.stringify(parsed[key]));
-              } else if (!profileExists) {
-                // First load: set complete profile (includes streaming-server config)
-                localStorage.setItem('profile', JSON.stringify(parsed[key]));
-                console.log('[Stremio] Initialized profile with streaming-server config');
-              }
-            });
-
             sessionStorage.setItem("stremio_base_loaded","true");
             console.log("Stremio base config loaded for:",window.location.origin);
           }
@@ -207,10 +218,17 @@ x-casaos:
             const profile = JSON.parse(localStorage.getItem('profile') || '{}');
             const existingAddons = profile.addons || [];
 
-            // Create maps for deduplication and updates
+            // Track which addons are defaults (these should NEVER be replaced)
+            const defaultAddonIds = new Set();
+            defaultAddons.forEach(addon => {
+              const addonId = addon.manifest?.id || addon.transportUrl;
+              if (addonId) defaultAddonIds.add(addonId);
+            });
+
+            // Create map for deduplication and updates
             const addonMap = new Map();
 
-            // 1. Start with default addons (ALWAYS present)
+            // 1. Start with default addons (ALWAYS present and NEVER replaced)
             defaultAddons.forEach(addon => {
               const addonId = addon.manifest?.id || addon.transportUrl;
               if (addonId) addonMap.set(addonId, addon);
@@ -224,11 +242,12 @@ x-casaos:
               }
             });
 
-            // 3. Add/update with preset addons (replaces if exists, adds if new)
+            // 3. Add/update preset addons (but NEVER replace defaults!)
             addons.forEach(addon => {
               const addonId = addon.manifest?.id || addon.transportUrl;
-              if (addonId) {
-                addonMap.set(addonId, addon); // Update or add
+              if (addonId && !defaultAddonIds.has(addonId)) {
+                // Only add/update if it's NOT a default addon
+                addonMap.set(addonId, addon);
               }
             });
 
