@@ -59,7 +59,7 @@ x-casaos:
   description:
     en_us: "A secure terminal with hash-based authentication using nginxhashlock"
   title:
-    en_us: "Yundera Terminal"
+    en_us: "Yundera TTYD Terminal"
   store_app_id: yunderaterminal
   is_uncontrolled: false
   # nginxhashlock handles the hash validation automatically
