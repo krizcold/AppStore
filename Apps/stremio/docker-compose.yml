@@ -103,8 +103,7 @@ x-casaos:
   tips:
     before_install:
       en_us: |
-        Access: `https://stremio-${REF_DOMAIN}/?hash=$AUTH_HASH`
-             or `http://stremio-${REF_DOMAIN}/` Using Login/Password
+        Access: `http://stremio-${REF_DOMAIN}/`
 
         You can change USER/PASSWORD via environment variables on "stremio" service, by default:
         • USER: admin
