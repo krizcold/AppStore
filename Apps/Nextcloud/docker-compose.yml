@@ -2,7 +2,7 @@ name: nextcloud
 
 services:
   nextcloud:
-    image: nextcloud:31.0.9
+    image: nextcloud:32.0.3
     container_name: nextcloud
     restart: unless-stopped
     user: $PUID:$PGID
@@ -44,7 +44,7 @@ services:
       - nextcloud-network
 
   db:
-    image: mariadb:11.2
+    image: mariadb:11.8
     container_name: nextcloud_db
     user: $PUID:$PGID
     cpu_shares: 70
@@ -67,7 +67,7 @@ services:
       - nextcloud-network
 
   redis:
-    image: redis:7.2-alpine
+    image: redis:7.4-alpine
     container_name: nextcloud_redis
     cpu_shares: 10
     command: redis-server --requirepass $default_pwd
@@ -85,7 +85,7 @@ services:
       - nextcloud-network
 
   cron:
-    image: nextcloud:31.0.9
+    image: nextcloud:32.0.3
     restart: unless-stopped
     volumes:
       - /DATA/AppData/nextcloud/root/:/var/www/html:z
