@@ -48,7 +48,7 @@ services:
     healthcheck:
       disable: false
     volumes:
-      - model-cache:/cache
+      - /DATA/AppData/immich/model-cache:/cache
     networks:
       - immich
 
@@ -94,9 +94,6 @@ services:
 networks:
   immich:
     name: immich
-
-volumes:
-  model-cache:
 
 x-casaos:
   main: immich
