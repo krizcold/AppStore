@@ -2,7 +2,7 @@ name: vaultwarden
 
 services:
   vaultwarden:
-    image: vaultwarden/server:1.34.3
+    image: vaultwarden/server:1.35.1
     user: $PUID:$PGID
     deploy:
       resources:
@@ -26,32 +26,23 @@ services:
       SIGNUPS_ALLOWED: "true"
       ADMIN_TOKEN: $default_pwd
       DOMAIN: https://vaultwarden-$domain
-      SMTP_HOST: postfix
-      SMTP_FROM: vaultwarden@$domain
-      SMTP_PORT: 25
+      SMTP_HOST: casaos
+      SMTP_PORT: 587
       SMTP_SECURITY: off
+      SMTP_USERNAME: casaos
+      SMTP_PASSWORD: $default_pwd
+      SMTP_FROM: vaultwarden@$domain
       SMTP_FROM_NAME: Vaultwarden
     volumes:
       - /DATA/AppData/vaultwarden/data/:/data/
     restart: unless-stopped
-    depends_on:
-      - postfix
     networks:
-      - vaultwarden
-
-  postfix:
-    image: boky/postfix:latest
-    user: 0:0
-    cpu_shares: 30
-    environment:
-      ALLOWED_SENDER_DOMAINS: $domain
-    networks:
-      - vaultwarden
-    restart: unless-stopped
+      - pcs
 
 networks:
-  vaultwarden:
-    name: vaultwarden
+  pcs:
+    name: pcs
+    external: true
 
 x-casaos:
   architectures:
@@ -254,12 +245,12 @@ x-casaos:
       **📧 Sistema de Email Integrado:**
       Esta versión incluye MailHog para funcionalidad de email sin configuración SMTP externa - ¡perfecto para recuperación de contraseñas y notificaciones!
   developer: Vaultwarden Community
-  icon: https://cdn.jsdelivr.net/gh/BookJJun-IJ/AppStore@create/Apps/Vaultwarden/icon.png
+  icon: https://cdn.jsdelivr.net/gh/Yundera/AppStore@main/Apps/Vaultwarden/icon.png
   screenshot_link:
-    - https://cdn.jsdelivr.net/gh/BookJJun-IJ/AppStore@create/Apps/Vaultwarden/screenshot-1.png
-    - https://cdn.jsdelivr.net/gh/BookJJun-IJ/AppStore@create/Apps/Vaultwarden/screenshot-2.png
-    - https://cdn.jsdelivr.net/gh/BookJJun-IJ/AppStore@create/Apps/Vaultwarden/screenshot-3.png
-  thumbnail: https://cdn.jsdelivr.net/gh/BookJJun-IJ/AppStore@create/Apps/Vaultwarden/screenshot-1.png
+    - https://cdn.jsdelivr.net/gh/Yundera/AppStore@main/Apps/Vaultwarden/screenshot-1.png
+    - https://cdn.jsdelivr.net/gh/Yundera/AppStore@main/Apps/Vaultwarden/screenshot-2.png
+    - https://cdn.jsdelivr.net/gh/Yundera/AppStore@main/Apps/Vaultwarden/screenshot-3.png
+  thumbnail: https://cdn.jsdelivr.net/gh/Yundera/AppStore@main/Apps/Vaultwarden/screenshot-1.png
   tagline:
     en_us: Your password manager with standalone email server
     ko_kr: 독립형 이메일 서버를 갖춘 비밀번호 관리자
