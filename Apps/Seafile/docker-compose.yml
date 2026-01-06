@@ -31,7 +31,7 @@ services:
       retries: 10
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4-alpine
     user: 0:0
     container_name: seafile-redis
     restart: unless-stopped
@@ -52,7 +52,7 @@ services:
       retries: 5
 
   seafile-app:
-    image: seafileltd/seafile-mc:13.0.12
+    image: seafileltd/seafile-mc:13.0.15
     container_name: seafile
     hostname: seafile-app
     restart: unless-stopped
@@ -202,7 +202,7 @@ services:
       caddy.2_handle_path.1_reverse_proxy: "seadoc:80"
 
   rclone:
-    image: rclone/rclone:1.71
+    image: rclone/rclone:1.72.1
     container_name: seafile-rclone
     restart: unless-stopped
     user: 0:0
@@ -242,7 +242,7 @@ services:
       - seafile-net
 
   seafile: # this service name is used by nsl.sh to route the seafile-$domain to this container
-    image: lucaslorentz/caddy-docker-proxy:2.9-alpine
+    image: lucaslorentz/caddy-docker-proxy:2.10-alpine
     user: 0:0
     container_name: seafile-caddy
     restart: unless-stopped
@@ -282,7 +282,7 @@ x-casaos:
     # Create rclone config with obscured password for WebDAV (only if not exists)
     if [ ! -f /DATA/AppData/seafile/rclone/rclone.conf ]; then
       echo "Creating rclone configuration..."
-      OBSCURED_PASS=$(docker run --rm rclone/rclone:1.71 obscure "$default_pwd") &&
+      OBSCURED_PASS=$(docker run --rm rclone/rclone:1.72.1 obscure "$default_pwd") &&
       cat > /DATA/AppData/seafile/rclone/rclone.conf << EOF
     [seafile-webdav]
     type = webdav
