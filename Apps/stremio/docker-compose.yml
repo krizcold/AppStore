@@ -2,33 +2,14 @@ name: stremio
 
 services:
   stremio:
-    image: ghcr.io/yundera/nginx-hash-lock:latest
-    container_name: stremio
-    restart: unless-stopped
-    user: "root"
-    expose:
-      - 80
-    environment:
-      BACKEND_HOST: "stremiocommunity"
-      BACKEND_PORT: "8080"
-      LISTEN_PORT: "80"
-    tmpfs:
-      - /var/cache/nginx:size=50M
-    depends_on:
-      - stremiocommunity
-    networks:
-      - pcs
-
-  stremiocommunity:
     image: tsaridas/stremio-docker:latest
-    container_name: stremiocommunity
     restart: unless-stopped
+    network_mode: host
     user: "0:0"
-    ports:
-      - "[::]:6881:6881/tcp"    # Bind to IPv6
-      - "[::]:6881:6881/udp"
+    # With network_mode: host, ports are directly on host:
+    # - 8080: Web UI + Streaming server
+    # - 6881: Torrent incoming connections (TCP/UDP)
     environment:
-      PCS_PUBLIC_IPV6: "${PCS_PUBLIC_IPV6}"
       NO_CORS: "1"
       AUTO_SERVER_URL: "1"
       USERNAME: "admin"
@@ -37,8 +18,6 @@ services:
       - type: bind
         source: /DATA/AppData/stremio/server/
         target: /root/.stremio-server/
-    networks:
-      - pcs
     x-casaos:
       envs:
         - container: USERNAME
@@ -52,10 +31,6 @@ services:
           description:
             en_us: "Stremio server data and configuration"
 
-networks:
-  pcs:
-    external: true
-
 x-casaos:
   architectures:
     - amd64
@@ -66,36 +41,38 @@ x-casaos:
   developer: Yundera
   icon: https://www.stremio.com/website/stremio-logo-small.png
   tagline:
-    en_us: "Stream movies & series (Community Edition)"
+    en_us: "Stream movies & series (Community Edition) - POC Host Network"
   category: Entertainment
   description:
     en_us: |
-      Stremio Community Edition with HTTP basic authentication.
+      Stremio Community Edition - PROOF OF CONCEPT with host networking.
+
+      This version uses network_mode: host to test if direct IPv6 access
+      improves torrent peer connectivity.
 
       Features:
-      - Clean subdomain (no port prefix)
+      - Direct access on port 8080 (no nginx proxy)
+      - Host networking for proper IPv6 peer announcement
       - All-in-one streaming server with FFmpeg transcoding
       - HTTP basic auth (USERNAME/PASSWORD)
 
       Default credentials: admin / stremio
-      Change via environment variables on "stremiocommunity" service.
 
-      This setup uses the tsaridas/stremio-docker community image
-      which bundles Stremio Server, Web UI, and FFmpeg in a single
-      optimized container.
+      Access via: https://8080-stremio-${REF_DOMAIN}/
   title:
-    en_us: "Stremio"
-  store_app_id: stremio
+    en_us: "Stremio (POC)"
+  store_app_id: stremio-poc
   is_uncontrolled: false
   index: /
-  webui_port: 80
+  port_map: "8080"
+  webui_port: 8080
   tips:
     before_install:
       en_us: |
-        Access: `https://${REF_DOMAIN}/`
+        PROOF OF CONCEPT - Tests host networking for better torrent peers.
+
+        Access: `https://8080-stremio-${REF_DOMAIN}/`
         Default credentials: `admin` / `stremio`
 
-        Change via USERNAME/PASSWORD environment variables on "stremiocommunity" service.
-
-        You can find Stremio addons in the Stremio Addon Catalog: https://addons.strem.io/
-        Or search for "Stremio addons" online for more options.
+        Compare peer count with this version vs production to see if
+        host networking improves torrent connectivity.
