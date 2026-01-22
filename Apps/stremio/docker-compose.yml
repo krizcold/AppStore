@@ -1,8 +1,66 @@
 name: stremio
 
 services:
+  # Proxy container on pcs network - handles mesh-router routing
   stremio:
+    image: nginx:alpine
+    container_name: stremio
+    restart: unless-stopped
+    expose:
+      - 80
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        cat > /etc/nginx/nginx.conf << 'EOF'
+        worker_processes auto;
+        error_log /var/log/nginx/error.log warn;
+        pid /var/run/nginx.pid;
+
+        events {
+            worker_connections 1024;
+        }
+
+        http {
+            include /etc/nginx/mime.types;
+            default_type application/octet-stream;
+            sendfile on;
+            keepalive_timeout 65;
+
+            server {
+                listen 80;
+                server_name _;
+
+                proxy_connect_timeout 60s;
+                proxy_send_timeout 300s;
+                proxy_read_timeout 300s;
+
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $$http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_set_header Host $$host;
+                proxy_set_header X-Real-IP $$remote_addr;
+                proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $$scheme;
+
+                proxy_buffering off;
+                proxy_request_buffering off;
+
+                location / {
+                    proxy_pass http://172.18.0.1:8080;
+                }
+            }
+        }
+        EOF
+        nginx -g 'daemon off;'
+    depends_on:
+      - stremiocommunity
+    networks:
+      - pcs
+
+  # Stremio server on host network - sees real IPv6 for torrent peers
+  stremiocommunity:
     image: tsaridas/stremio-docker:latest
+    container_name: stremiocommunity
     restart: unless-stopped
     network_mode: host
     user: "0:0"
@@ -31,6 +89,10 @@ services:
           description:
             en_us: "Stremio server data and configuration"
 
+networks:
+  pcs:
+    external: true
+
 x-casaos:
   architectures:
     - amd64
@@ -50,28 +112,28 @@ x-casaos:
       This version uses network_mode: host to test if direct IPv6 access
       improves torrent peer connectivity.
 
+      Architecture:
+      - Nginx proxy on pcs network (for mesh-router access)
+      - Stremio server on host network (for IPv6 torrent peers)
+
       Features:
-      - Direct access on port 8080 (no nginx proxy)
       - Host networking for proper IPv6 peer announcement
       - All-in-one streaming server with FFmpeg transcoding
       - HTTP basic auth (USERNAME/PASSWORD)
 
       Default credentials: admin / stremio
-
-      Access via: https://8080-stremio-${REF_DOMAIN}/
   title:
     en_us: "Stremio (POC)"
   store_app_id: stremio-poc
   is_uncontrolled: false
   index: /
-  port_map: "8080"
-  webui_port: 8080
+  webui_port: 80
   tips:
     before_install:
       en_us: |
         PROOF OF CONCEPT - Tests host networking for better torrent peers.
 
-        Access: `https://8080-stremio-${REF_DOMAIN}/`
+        Access: `https://stremio-${REF_DOMAIN}/`
         Default credentials: `admin` / `stremio`
 
         Compare peer count with this version vs production to see if
