@@ -24,7 +24,11 @@ services:
     container_name: stremiocommunity
     restart: unless-stopped
     user: "0:0"
+    ports:
+      - "[::]:6881:6881/tcp"    # Bind to IPv6
+      - "[::]:6881:6881/udp"
     environment:
+      PCS_PUBLIC_IPV6: "${PCS_PUBLIC_IPV6}"
       NO_CORS: "1"
       AUTO_SERVER_URL: "1"
       USERNAME: "admin"
