@@ -6,6 +6,7 @@ services:
     image: nginx:alpine
     container_name: stremio
     restart: unless-stopped
+    user: "0:0"
     expose:
       - 80
     entrypoint: ["/bin/sh", "-c"]
