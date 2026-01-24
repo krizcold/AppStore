@@ -31,7 +31,7 @@ services:
       - 8000
     environment:
       HOST_URL: "https://mediafusion-${REF_DOMAIN}"
-      SECRET_KEY: "${PCS_DEFAULT_PASSWORD}${PCS_DEFAULT_PASSWORD}"
+      SECRET_KEY: "${PCS_DEFAULT_PASSWORD}"
       API_PASSWORD: "${PCS_DEFAULT_PASSWORD}"
       ADDON_NAME: "MediaFusion"
       LOGGING_LEVEL: "INFO"
@@ -147,7 +147,7 @@ services:
       MONGO_URI: "mongodb://mongodb:27017/mediafusion"
       POSTGRES_URI: "postgresql+asyncpg://mediafusion:mediafusion@postgres:5432/mediafusion"
       REDIS_URL: "redis://redis:6379"
-      SECRET_KEY: "${PCS_DEFAULT_PASSWORD}${PCS_DEFAULT_PASSWORD}"
+      SECRET_KEY: "${PCS_DEFAULT_PASSWORD}"
     depends_on:
       mongodb:
         condition: service_healthy
