@@ -1,0 +1,328 @@
+name: mediafusion
+
+services:
+  # Main MediaFusion API - Stremio addon (exposed via mesh-router)
+  mediafusion:
+    image: mhdzumair/mediafusion:latest
+    container_name: mediafusion
+    hostname: mediafusion
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      # Core settings - SECRET_KEY uses PCS password (unique per instance)
+      HOST_URL: "https://mediafusion-${REF_DOMAIN}"
+      SECRET_KEY: "${PCS_DEFAULT_PASSWORD}${PCS_DEFAULT_PASSWORD}"
+      API_PASSWORD: "${PCS_DEFAULT_PASSWORD}"
+      ADDON_NAME: "MediaFusion"
+      LOGGING_LEVEL: "INFO"
+      IS_PUBLIC_INSTANCE: "false"
+
+      # Database connections
+      MONGO_URI: "mongodb://mongodb:27017/mediafusion"
+      POSTGRES_URI: "postgresql+asyncpg://mediafusion:mediafusion@postgres:5432/mediafusion"
+      REDIS_URL: "redis://redis:6379"
+
+      # External services
+      FLARESOLVERR_URL: "http://flaresolverr:8191/v1"
+      PLAYWRIGHT_CDP_URL: "ws://browserless:3000?blockAds=true&stealth=true"
+
+      # Prowlarr - disabled by default (user can enable after getting API key)
+      IS_SCRAP_FROM_PROWLARR: "false"
+      PROWLARR_URL: "http://mediafusion-prowlarr:9696"
+
+      # Enable default scrapers (no API key required)
+      IS_SCRAP_FROM_BT4G: "true"
+      IS_SCRAP_FROM_YTS: "true"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 1m
+      timeout: 10s
+      retries: 5
+      start_period: 5m
+    networks:
+      - pcs
+
+  # qBittorrent with WebDAV - HOST NETWORK for IPv6 peer connections
+  qbittorrent:
+    image: mhdzumair/qbittorrent-webdav:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    network_mode: host
+    user: "0:0"
+    # With network_mode: host, ports are directly on host:
+    # - 8081: qBittorrent WebUI + WebDAV (configured via QBT_WEBUI_PORT)
+    # - 6881: Torrent incoming connections (TCP/UDP) - CRITICAL for peer connectivity
+    environment:
+      QBT_EULA: "accept"
+      QBT_WEBUI_PORT: "8081"
+      PUID: "1000"
+      PGID: "1000"
+    volumes:
+      - type: bind
+        source: /DATA/AppData/mediafusion/qbittorrent/downloads
+        target: /downloads
+      - type: bind
+        source: /DATA/AppData/mediafusion/qbittorrent/config
+        target: /config
+
+  # Proxy for qBittorrent WebUI (host:8081 -> pcs network for mesh-router)
+  qbittorrent-proxy:
+    image: ghcr.io/yundera/nginx-hash-lock:latest
+    container_name: qbittorrent-proxy
+    hostname: qbittorrent
+    restart: unless-stopped
+    user: "root"
+    expose:
+      - "80"
+    environment:
+      BACKEND_HOST: "172.18.0.1"
+      BACKEND_PORT: "8081"
+      LISTEN_PORT: "80"
+      # HTTP Basic Auth using PCS credentials
+      USERNAME: "admin"
+      PASSWORD: "${PCS_DEFAULT_PASSWORD}"
+    tmpfs:
+      - /var/cache/nginx:size=50M
+    depends_on:
+      - qbittorrent
+    networks:
+      - pcs
+
+  # Proxy for Prowlarr UI (internal -> pcs network for mesh-router)
+  prowlarr-proxy:
+    image: ghcr.io/yundera/nginx-hash-lock:latest
+    container_name: prowlarr-proxy
+    hostname: prowlarr
+    restart: unless-stopped
+    user: "root"
+    expose:
+      - "80"
+    environment:
+      BACKEND_HOST: "mediafusion-prowlarr"
+      BACKEND_PORT: "9696"
+      LISTEN_PORT: "80"
+      # HTTP Basic Auth using PCS credentials
+      USERNAME: "admin"
+      PASSWORD: "${PCS_DEFAULT_PASSWORD}"
+    tmpfs:
+      - /var/cache/nginx:size=50M
+    depends_on:
+      - prowlarr
+    networks:
+      - pcs
+
+  # Background task worker
+  dramatiq-worker:
+    image: mhdzumair/mediafusion:latest
+    container_name: mediafusion-worker
+    restart: unless-stopped
+    command: ["dramatiq", "api.task", "-p", "1", "-t", "4"]
+    environment:
+      MONGO_URI: "mongodb://mongodb:27017/mediafusion"
+      POSTGRES_URI: "postgresql+asyncpg://mediafusion:mediafusion@postgres:5432/mediafusion"
+      REDIS_URL: "redis://redis:6379"
+      SECRET_KEY: "${PCS_DEFAULT_PASSWORD}${PCS_DEFAULT_PASSWORD}"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pcs
+
+  # PostgreSQL - Primary database
+  postgres:
+    image: postgres:16-alpine
+    container_name: mediafusion-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mediafusion
+      POSTGRES_PASSWORD: mediafusion
+      POSTGRES_DB: mediafusion
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=128MB"
+      - "-c"
+      - "effective_cache_size=384MB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+      - "-c"
+      - "work_mem=8MB"
+    volumes:
+      - type: bind
+        source: /DATA/AppData/mediafusion/postgres
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mediafusion -d mediafusion"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - pcs
+
+  # MongoDB - Legacy database (kept for migration)
+  mongodb:
+    image: mongo:7
+    container_name: mediafusion-mongodb
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /DATA/AppData/mediafusion/mongodb
+        target: /data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - pcs
+
+  # Redis - Caching and message broker
+  redis:
+    image: redis:7-alpine
+    container_name: mediafusion-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --save 60 1
+    volumes:
+      - type: bind
+        source: /DATA/AppData/mediafusion/redis
+        target: /data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --raw INFO | grep -q '^loading:0'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pcs
+
+  # Prowlarr - Indexer aggregator (internal service, accessed via prowlarr-proxy)
+  prowlarr:
+    image: ghcr.io/hotio/prowlarr:latest
+    container_name: mediafusion-prowlarr
+    hostname: mediafusion-prowlarr-internal
+    restart: unless-stopped
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      UMASK: "002"
+      TZ: "UTC"
+    expose:
+      - "9696"
+    volumes:
+      - type: bind
+        source: /DATA/AppData/mediafusion/prowlarr
+        target: /config
+    networks:
+      - pcs
+
+  # FlareSolverr - Cloudflare bypass
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: mediafusion-flaresolverr
+    restart: unless-stopped
+    expose:
+      - "8191"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8191/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - pcs
+
+  # Browserless - Headless Chrome for scraping
+  browserless:
+    image: ghcr.io/browserless/chromium
+    container_name: mediafusion-browserless
+    restart: unless-stopped
+    environment:
+      TIMEOUT: "-1"
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/json/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - pcs
+
+networks:
+  pcs:
+    external: true
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: mediafusion
+  author: Yundera
+  developer: mhdzumair
+  icon: https://raw.githubusercontent.com/mhdzumair/MediaFusion/main/resources/images/mediafusion_logo.png
+  tagline:
+    en_us: "Stremio addon with real torrent downloads via qBittorrent"
+  category: Media
+  description:
+    en_us: |
+      MediaFusion - Universal Stremio Addon with REAL torrent downloads.
+
+      Unlike the built-in Stremio torrent engine, MediaFusion uses qBittorrent
+      which properly accepts incoming peer connections for 10x better speeds.
+
+      Features:
+      - qBittorrent backend with WebDAV streaming
+      - IPv6 port 6881 exposed for peer connections
+      - Prowlarr for aggregating torrent indexers (optional)
+      - FlareSolverr for bypassing Cloudflare protection
+      - PostgreSQL + MongoDB + Redis for caching
+
+      Quick Setup:
+      1. Open MediaFusion at `https://mediafusion-${REF_DOMAIN}/configure`
+      2. Select "qBittorrent - WebDAV" as streaming provider
+      3. Set qBittorrent URL: `http://172.18.0.1:8081`
+      4. Set WebDAV URL: `http://172.18.0.1:8081/webdav/`
+      5. Copy addon URL and add to Stremio
+
+      Management URLs:
+      - MediaFusion: `https://mediafusion-${REF_DOMAIN}/configure`
+      - qBittorrent: `https://qbittorrent-${REF_DOMAIN}/qbittorrent/`
+      - Prowlarr: `https://prowlarr-${REF_DOMAIN}/` (optional - for more indexers)
+  title:
+    en_us: "MediaFusion"
+  store_app_id: mediafusion
+  is_uncontrolled: false
+  index: /configure
+  webui_port: 8000
+  tips:
+    before_install:
+      en_us: |
+        MediaFusion provides REAL torrent downloads with proper peer connectivity.
+
+        Port 6881 (TCP/UDP) is exposed on your IPv6 address for incoming peer
+        connections. This gives you 10x more peers than Stremio's built-in engine!
+
+        After installation:
+        1. Open `https://mediafusion-${REF_DOMAIN}/configure`
+        2. Select "qBittorrent - WebDAV" as streaming provider
+        3. qBittorrent URL: `http://172.18.0.1:8081`
+        4. WebDAV endpoint: `http://172.18.0.1:8081/webdav/`
+        5. Copy the addon manifest URL at the bottom
+        6. Open Stremio → Settings → Add-ons → Install from URL
+
+        Login credentials for qBittorrent & Prowlarr: `admin` / your PCS password
+
+        Optional: Add more torrent indexers via Prowlarr at
+        `https://prowlarr-${REF_DOMAIN}/` then enable Prowlarr in MediaFusion settings.
