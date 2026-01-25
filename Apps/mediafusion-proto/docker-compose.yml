@@ -7,10 +7,14 @@ services:
     container_name: mediafusion-landing
     hostname: mediafusion-setup
     restart: unless-stopped
+    user: "0:0"
     expose:
       - 80
     volumes:
       - /DATA/AppData/mediafusion/config:/usr/share/nginx/html:ro
+    tmpfs:
+      - /var/cache/nginx:size=10M
+      - /run:size=10M
     depends_on:
       - mediafusion
     networks:
@@ -242,14 +246,13 @@ services:
 
   # Prowlarr - Indexer aggregator
   prowlarr:
-    image: ghcr.io/hotio/prowlarr:latest
+    image: lscr.io/linuxserver/prowlarr:latest
     container_name: mediafusion-prowlarr
     hostname: mediafusion-prowlarr-internal
     restart: unless-stopped
     environment:
-      PUID: "1000"
-      PGID: "1000"
-      UMASK: "002"
+      PUID: "0"
+      PGID: "0"
       TZ: "UTC"
     expose:
       - 9696
