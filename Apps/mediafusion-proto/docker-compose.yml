@@ -5,7 +5,7 @@ services:
   landing:
     image: nginx:alpine
     container_name: mediafusion-landing
-    hostname: mediafusion-setup
+    hostname: mediafusion
     restart: unless-stopped
     user: "0:0"
     expose:
@@ -29,12 +29,12 @@ services:
   mediafusion:
     image: mhdzumair/mediafusion:latest
     container_name: mediafusion
-    hostname: mediafusion
+    hostname: mediafusion-api
     restart: unless-stopped
     expose:
       - 8000
     environment:
-      HOST_URL: "https://mediafusion-${REF_DOMAIN}"
+      HOST_URL: "https://mediafusion-api-${REF_DOMAIN}"
       SECRET_KEY: "${PCS_DEFAULT_PASSWORD}!mfkey!!"
       API_PASSWORD: "${PCS_DEFAULT_PASSWORD}"
       ADDON_NAME: "MediaFusion"
