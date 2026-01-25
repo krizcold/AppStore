@@ -4,7 +4,7 @@
 
 set -e
 
-APP_DIR="/DATA/AppData/mediafusion"
+APP_DIR="/DATA/AppData/mediafusion-proto"
 
 echo "Creating MediaFusion directories..."
 mkdir -p "$APP_DIR"/{qbittorrent/downloads,qbittorrent/config,postgres,mongodb,redis,prowlarr,config}
@@ -14,7 +14,7 @@ chmod -R 755 "$APP_DIR"
 echo "Generating pre-configured addon URL..."
 docker run --rm \
   -e SECRET_KEY="${PCS_DEFAULT_PASSWORD}!mfkey!!" \
-  -e HOST_URL="https://mediafusion-api-${REF_DOMAIN}" \
+  -e HOST_URL="https://mediafusion-proto-api-${REF_DOMAIN}" \
   python:3.11-alpine sh -c '
 pip install -q cryptography 2>/dev/null
 python3 << "PYSCRIPT"
@@ -31,11 +31,11 @@ ud = {
     "sp": {
         "sps": "qbittorrent",
         "qbc": {
-            "qur": "http://172.18.0.1:8081",
+            "qur": "http://172.18.0.1:8082",
             "qus": "", "qpw": "",
             "stl": 1440, "srl": 1.0, "pva": 100,
             "cat": "MediaFusion",
-            "wur": "http://172.18.0.1:8081/webdav/",
+            "wur": "http://172.18.0.1:8082/webdav/",
             "wus": "", "wpw": "", "wdp": "/downloads"
         }
     }
