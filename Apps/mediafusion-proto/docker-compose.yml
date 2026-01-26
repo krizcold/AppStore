@@ -25,11 +25,34 @@ services:
         limits:
           memory: 64M
 
+  # Proxy for MediaFusion API (mesh-router needs port 80)
+  mediafusion-proxy:
+    image: nginx:alpine
+    container_name: mediafusion-proto-api-proxy
+    hostname: mfprotoapi
+    restart: unless-stopped
+    user: "0:0"
+    expose:
+      - 80
+    volumes:
+      - /DATA/AppData/mediafusion-proto/nginx-api.conf:/etc/nginx/conf.d/default.conf:ro
+    tmpfs:
+      - /var/cache/nginx:size=10M
+      - /run:size=10M
+    depends_on:
+      - mediafusion
+    networks:
+      - pcs
+    cpu_shares: 10
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
   # Main MediaFusion API - Stremio addon
   mediafusion:
     image: mhdzumair/mediafusion:latest
     container_name: mediafusion-proto
-    hostname: mfprotoapi
     restart: unless-stopped
     expose:
       - 8000

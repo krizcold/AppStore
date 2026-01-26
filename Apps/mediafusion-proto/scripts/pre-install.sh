@@ -9,6 +9,20 @@ mkdir -p "$APP_DIR"/{qbittorrent/downloads,qbittorrent/config,postgres,mongodb,r
 chown -R 1000:1000 "$APP_DIR" 2>/dev/null || true
 chmod -R 755 "$APP_DIR"
 
+echo "Creating nginx proxy config for API..."
+cat > "$APP_DIR/nginx-api.conf" << 'NGINXCONF'
+server {
+    listen 80;
+    location / {
+        proxy_pass http://mediafusion:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+NGINXCONF
+
 echo "Generating pre-configured addon URL..."
 ADDON_URL=$(docker run --rm \
   -e SECRET_KEY="${PCS_DEFAULT_PASSWORD}!mfkey!!" \
