@@ -1,18 +1,16 @@
 #!/bin/bash
-# MediaFusion Pre-Install Script
+# MediaFusion Proto Pre-Install Script
 # Creates directories and generates pre-configured addon URL
-
-set -e
 
 APP_DIR="/DATA/AppData/mediafusion-proto"
 
-echo "Creating MediaFusion directories..."
+echo "Creating MediaFusion Proto directories..."
 mkdir -p "$APP_DIR"/{qbittorrent/downloads,qbittorrent/config,postgres,mongodb,redis,prowlarr,config}
 chown -R 1000:1000 "$APP_DIR" 2>/dev/null || true
 chmod -R 755 "$APP_DIR"
 
 echo "Generating pre-configured addon URL..."
-docker run --rm \
+ADDON_URL=$(docker run --rm \
   -e SECRET_KEY="${PCS_DEFAULT_PASSWORD}!mfkey!!" \
   -e HOST_URL="https://mediafusion-proto-api-${REF_DOMAIN}" \
   python:3.11-alpine sh -c '
@@ -26,7 +24,6 @@ sk = os.environ["SECRET_KEY"]
 hu = os.environ["HOST_URL"]
 key = hashlib.sha256(sk.encode()).digest()
 
-# UserData with qBittorrent-WebDAV config (MediaFusion schema aliases)
 ud = {
     "sp": {
         "sps": "qbittorrent",
@@ -41,7 +38,6 @@ ud = {
     }
 }
 
-# Compress and encrypt
 c = zlib.compress(json.dumps(ud, separators=(",", ":")).encode())
 iv = os.urandom(16)
 cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
@@ -52,13 +48,18 @@ config_str = "D-" + base64.urlsafe_b64encode(encrypted).decode().rstrip("=")
 
 print(f"{hu}/{config_str}/manifest.json")
 PYSCRIPT
-' > "$APP_DIR/config/addon-url.txt"
+' 2>/dev/null)
 
-# Extract domain for Prowlarr URL
-PROWLARR_URL="https://prowlarr-${REF_DOMAIN}/"
+# Fallback if docker run failed
+if [ -z "$ADDON_URL" ]; then
+  echo "Warning: Could not generate encrypted URL, using fallback"
+  ADDON_URL="https://mediafusion-proto-api-${REF_DOMAIN}/configure"
+fi
+
+echo "$ADDON_URL" > "$APP_DIR/config/addon-url.txt"
 
 echo "Creating landing page..."
-cat > "$APP_DIR/config/index.html" << HTMLEOF
+cat > "$APP_DIR/config/index.html" << 'HTMLEOF'
 <!DOCTYPE html>
 <html>
 <head>
@@ -120,4 +121,4 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
 </html>
 HTMLEOF
 
-echo "MediaFusion pre-install completed successfully"
+echo "MediaFusion Proto pre-install completed successfully"
