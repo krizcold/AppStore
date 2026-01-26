@@ -345,7 +345,7 @@ x-casaos:
   index: /
   webui_port: 80
   pre-install-cmd: |
-    curl -fsSL https://raw.githubusercontent.com/krizcold/AppStore/main/Apps/StremioMediastreamProto/scripts/pre-install.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/krizcold/AppStore/main/Apps/mediafusion-proto/scripts/pre-install.sh | bash
   tips:
     before_install:
       en_us: |

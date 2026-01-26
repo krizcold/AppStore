@@ -13,8 +13,8 @@ chmod -R 755 "$APP_DIR"
 
 echo "Generating pre-configured addon URL..."
 docker run --rm \
-  -e SECRET_KEY="${PCS_DEFAULT_PASSWORD}${PCS_DEFAULT_PASSWORD}" \
-  -e HOST_URL="https://mediafusion-${REF_DOMAIN}" \
+  -e SECRET_KEY="${PCS_DEFAULT_PASSWORD}!mfkey!!" \
+  -e HOST_URL="https://mediafusion-api-${REF_DOMAIN}" \
   python:3.11-alpine sh -c '
 pip install -q cryptography 2>/dev/null
 python3 << "PYSCRIPT"
