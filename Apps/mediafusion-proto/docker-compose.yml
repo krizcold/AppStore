@@ -5,7 +5,7 @@ services:
   landing:
     image: nginx:alpine
     container_name: mediafusion-proto-landing
-    hostname: mediafusion-proto
+    hostname: mfproto
     restart: unless-stopped
     user: "0:0"
     expose:
@@ -29,12 +29,12 @@ services:
   mediafusion:
     image: mhdzumair/mediafusion:latest
     container_name: mediafusion-proto
-    hostname: mediafusion-proto-api
+    hostname: mfprotoapi
     restart: unless-stopped
     expose:
       - 8000
     environment:
-      HOST_URL: "https://mediafusion-proto-api-${REF_DOMAIN}"
+      HOST_URL: "https://mfprotoapi-${REF_DOMAIN}"
       SECRET_KEY: "${PCS_DEFAULT_PASSWORD}!mfkey!!"
       API_PASSWORD: "${PCS_DEFAULT_PASSWORD}"
       ADDON_NAME: "MediaFusion (Proto)"
@@ -91,7 +91,7 @@ services:
   qbittorrent-proxy:
     image: ghcr.io/yundera/nginx-hash-lock:latest
     container_name: mediafusion-proto-qbittorrent-proxy
-    hostname: qbittorrent-proto
+    hostname: qbittorrentproto
     restart: unless-stopped
     user: "root"
     expose:
@@ -118,7 +118,7 @@ services:
   prowlarr-proxy:
     image: ghcr.io/yundera/nginx-hash-lock:latest
     container_name: mediafusion-proto-prowlarr-proxy
-    hostname: prowlarr-proto
+    hostname: prowlarrproto
     restart: unless-stopped
     user: "root"
     expose:
