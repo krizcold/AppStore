@@ -42,11 +42,11 @@ ud = {
     "sp": {
         "sps": "qbittorrent",
         "qbc": {
-            "qur": "http://172.18.0.1:8082",
+            "qur": "http://qbittorrent:80/qbittorrent/",
             "qus": "", "qpw": "",
             "stl": 1440, "srl": 1.0, "pva": 100,
             "cat": "MediaFusion",
-            "wur": "http://172.18.0.1:8082/webdav/",
+            "wur": "http://qbittorrent:80/webdav/",
             "wus": "", "wpw": "", "wdp": "/downloads"
         }
     }

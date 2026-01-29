@@ -94,21 +94,24 @@ services:
         limits:
           memory: 512M
 
-  # qBittorrent with WebDAV - HOST NETWORK for IPv6 peer connections
+  # qBittorrent with WebDAV
   qbittorrent:
     image: mhdzumair/qbittorrent-webdav:latest
     container_name: mediafusion-proto-qbittorrent
     restart: unless-stopped
-    network_mode: host
     user: "0:0"
+    ports:
+      - "8083:80"
+      - "6881:6881/tcp"
+      - "6881:6881/udp"
     environment:
-      QBT_EULA: "accept"
-      QBT_WEBUI_PORT: "8082"
       PUID: "1000"
       PGID: "1000"
     volumes:
       - /DATA/AppData/mediafusion-proto/qbittorrent/downloads:/downloads
       - /DATA/AppData/mediafusion-proto/qbittorrent/config:/config
+    networks:
+      - pcs
 
   # Proxy for qBittorrent WebUI
   qbittorrent-proxy:
@@ -120,8 +123,9 @@ services:
     expose:
       - 80
     environment:
-      BACKEND_HOST: "172.18.0.1"
-      BACKEND_PORT: "8082"
+      BACKEND_HOST: "qbittorrent"
+      BACKEND_PORT: "80"
+      BACKEND_PATH: "/qbittorrent/"
       LISTEN_PORT: "80"
       USERNAME: "admin"
       PASSWORD: "${PCS_DEFAULT_PASSWORD}"
