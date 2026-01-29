@@ -5,7 +5,7 @@
 APP_DIR="/DATA/AppData/mediafusion-proto"
 
 echo "Creating MediaFusion Proto directories..."
-mkdir -p "$APP_DIR"/{qbittorrent/downloads,qbittorrent/config/qBittorrent,postgres,mongodb,redis,prowlarr,config}
+mkdir -p "$APP_DIR"/{qbittorrent/downloads,qbittorrent/config/qBittorrent/config,postgres,mongodb,redis,prowlarr,config}
 chown -R 1000:1000 "$APP_DIR" 2>/dev/null || true
 chmod -R 755 "$APP_DIR"
 
@@ -24,7 +24,7 @@ print(f\"@ByteArray({hash_str})\")
 "' 2>/dev/null)
 
 # Create qBittorrent config with pre-set password
-cat > "$APP_DIR/qbittorrent/config/qBittorrent/qBittorrent.conf" << QBTCONF
+cat > "$APP_DIR/qbittorrent/config/qBittorrent/config/qBittorrent.conf" << QBTCONF
 [BitTorrent]
 Session\DefaultSavePath=/downloads
 Session\Port=6881
