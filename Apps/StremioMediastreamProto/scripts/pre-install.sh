@@ -2,7 +2,7 @@
 # MediaFusion Proto Pre-Install Script
 # Creates directories and generates pre-configured addon URL
 
-APP_DIR="/DATA/AppData/StremioMediastreamProto"
+APP_DIR="/DATA/AppData/mediafusionproto"
 
 echo "Creating MediaFusion Proto directories..."
 mkdir -p "$APP_DIR"/{qbittorrent/downloads,qbittorrent/config/qBittorrent/config,postgres,mongodb,redis,prowlarr,config}
