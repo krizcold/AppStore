@@ -201,6 +201,7 @@ services:
     image: postgres:16-alpine
     container_name: mediafusionprotopostgres
     restart: unless-stopped
+    user: "0:0"
     environment:
       POSTGRES_USER: mediafusion
       POSTGRES_PASSWORD: mediafusion
@@ -236,6 +237,7 @@ services:
     image: mongo:7
     container_name: mediafusionprotomongodb
     restart: unless-stopped
+    user: "0:0"
     volumes:
       - /DATA/AppData/mediafusionproto/mongodb:/data/db
     healthcheck:
@@ -257,6 +259,7 @@ services:
     image: redis:7-alpine
     container_name: mediafusionprotoredis
     restart: unless-stopped
+    user: "0:0"
     command: redis-server --appendonly yes --save 60 1
     volumes:
       - /DATA/AppData/mediafusionproto/redis:/data
