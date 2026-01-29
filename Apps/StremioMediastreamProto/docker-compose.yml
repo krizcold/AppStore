@@ -5,7 +5,7 @@ services:
   landing:
     image: nginx:alpine
     container_name: mediafusionprotolanding
-    hostname: mfproto
+    hostname: mediafusionproto
     restart: unless-stopped
     user: "0:0"
     expose:
@@ -29,7 +29,7 @@ services:
   mediafusionproxy:
     image: nginx:alpine
     container_name: mediafusionprotoapiproxy
-    hostname: mfprotoapi
+    hostname: mediafusionprotoapi
     restart: unless-stopped
     user: "0:0"
     expose:
@@ -57,7 +57,7 @@ services:
     expose:
       - 8000
     environment:
-      HOST_URL: "https://mfprotoapi-${REF_DOMAIN}"
+      HOST_URL: "https://mediafusionprotoapi-${REF_DOMAIN}"
       SECRET_KEY: "${PCS_DEFAULT_PASSWORD}!mfkey!!"
       API_PASSWORD: "${PCS_DEFAULT_PASSWORD}"
       ADDON_NAME: "MediaFusion (Proto)"
@@ -117,7 +117,7 @@ services:
   qbittorrentproxy:
     image: ghcr.io/yundera/nginx-hash-lock:latest
     container_name: mediafusionprotoqbittorrentproxy
-    hostname: qbittorrentproto
+    hostname: mediafusionprotoqbittorrent
     restart: unless-stopped
     user: "root"
     expose:
@@ -145,7 +145,7 @@ services:
   prowlarrproxy:
     image: ghcr.io/yundera/nginx-hash-lock:latest
     container_name: mediafusionprotoprowlarrproxy
-    hostname: prowlarrproto
+    hostname: mediafusionprotoprowlarr
     restart: unless-stopped
     user: "root"
     expose:
@@ -175,7 +175,7 @@ services:
     restart: unless-stopped
     command: ["dramatiq", "api.task", "-p", "1", "-t", "4"]
     environment:
-      HOST_URL: "https://mfprotoapi-${REF_DOMAIN}"
+      HOST_URL: "https://mediafusionprotoapi-${REF_DOMAIN}"
       API_PASSWORD: "${PCS_DEFAULT_PASSWORD}"
       MONGO_URI: "mongodb://mongodb:27017/mediafusion"
       POSTGRES_URI: "postgresql+asyncpg://mediafusion:mediafusion@postgres:5432/mediafusion"

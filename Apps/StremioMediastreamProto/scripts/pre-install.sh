@@ -53,7 +53,7 @@ server {
 NGINXCONF
 
 # Configure URL points to MediaFusion configure page
-CONFIGURE_URL="https://mfprotoapi-${REF_DOMAIN}/configure"
+CONFIGURE_URL="https://mediafusionprotoapi-${REF_DOMAIN}/configure"
 echo "$CONFIGURE_URL" > "$APP_DIR/config/addon-url.txt"
 
 echo "Creating landing page..."
