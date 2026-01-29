@@ -5,9 +5,38 @@
 APP_DIR="/DATA/AppData/mediafusion-proto"
 
 echo "Creating MediaFusion Proto directories..."
-mkdir -p "$APP_DIR"/{qbittorrent/downloads,qbittorrent/config,postgres,mongodb,redis,prowlarr,config}
+mkdir -p "$APP_DIR"/{qbittorrent/downloads,qbittorrent/config/qBittorrent,postgres,mongodb,redis,prowlarr,config}
 chown -R 1000:1000 "$APP_DIR" 2>/dev/null || true
 chmod -R 755 "$APP_DIR"
+
+echo "Pre-configuring qBittorrent with known password..."
+# Generate PBKDF2 hash for qBittorrent password (using PCS_DEFAULT_PASSWORD)
+QBT_PASSWORD_HASH=$(docker run --rm -e PASSWORD="${PCS_DEFAULT_PASSWORD}" python:3.11-alpine sh -c '
+pip install -q passlib 2>/dev/null
+python3 -c "
+import os, base64, hashlib
+password = os.environ[\"PASSWORD\"]
+salt = os.urandom(16)
+iterations = 100000
+dk = hashlib.pbkdf2_hmac(\"sha512\", password.encode(), salt, iterations, dklen=64)
+hash_str = base64.b64encode(salt + dk).decode()
+print(f\"@ByteArray({hash_str})\")
+"' 2>/dev/null)
+
+# Create qBittorrent config with pre-set password
+cat > "$APP_DIR/qbittorrent/config/qBittorrent/qBittorrent.conf" << QBTCONF
+[BitTorrent]
+Session\DefaultSavePath=/downloads
+Session\Port=6881
+Session\QueueingSystemEnabled=false
+
+[Preferences]
+WebUI\Username=admin
+WebUI\Password_PBKDF2=${QBT_PASSWORD_HASH}
+WebUI\LocalHostAuth=false
+WebUI\AuthSubnetWhitelistEnabled=true
+WebUI\AuthSubnetWhitelist=0.0.0.0/0
+QBTCONF
 
 echo "Creating nginx proxy config for API..."
 cat > "$APP_DIR/nginx-api.conf" << 'NGINXCONF'
@@ -72,7 +101,7 @@ cat > "$APP_DIR/config/index.html" << 'HTMLEOF'
       <li><strong>Streaming Provider:</strong> qBittorrent</li>
       <li><strong>qBittorrent URL:</strong> http://qbittorrent:80/qbittorrent/</li>
       <li><strong>Username:</strong> admin</li>
-      <li><strong>Password:</strong> (check qBittorrent logs)</li>
+      <li><strong>Password:</strong> (your PCS password)</li>
       <li><strong>WebDAV URL:</strong> http://qbittorrent:80/webdav/</li>
       <li><strong>WebDAV credentials:</strong> leave blank</li>
     </ul>
