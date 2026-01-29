@@ -23,54 +23,9 @@ server {
 }
 NGINXCONF
 
-echo "Generating pre-configured addon URL..."
-ADDON_URL=$(docker run --rm \
-  -e SECRET_KEY="${PCS_DEFAULT_PASSWORD}!mfkey!!" \
-  -e HOST_URL="https://mfprotoapi-${REF_DOMAIN}" \
-  python:3.11-alpine sh -c '
-pip install -q cryptography 2>/dev/null
-python3 << "PYSCRIPT"
-import os, json, zlib, base64, hashlib
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
-
-sk = os.environ["SECRET_KEY"]
-hu = os.environ["HOST_URL"]
-key = hashlib.sha256(sk.encode()).digest()
-
-ud = {
-    "sp": {
-        "sps": "qbittorrent",
-        "qbc": {
-            "qur": "http://qbittorrent:80/qbittorrent/",
-            "qus": "", "qpw": "",
-            "stl": 1440, "srl": 1.0, "pva": 100,
-            "cat": "MediaFusion",
-            "wur": "http://qbittorrent:80/webdav/",
-            "wus": "", "wpw": "", "wdp": "/downloads"
-        }
-    }
-}
-
-c = zlib.compress(json.dumps(ud, separators=(",", ":")).encode())
-iv = os.urandom(16)
-cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-enc = cipher.encryptor()
-pad_len = 16 - (len(c) % 16)
-encrypted = iv + enc.update(c + bytes([pad_len] * pad_len)) + enc.finalize()
-config_str = "D-" + base64.urlsafe_b64encode(encrypted).decode().rstrip("=")
-
-print(f"{hu}/{config_str}/manifest.json")
-PYSCRIPT
-' 2>/dev/null)
-
-# Fallback if docker run failed
-if [ -z "$ADDON_URL" ]; then
-  echo "Warning: Could not generate encrypted URL, using fallback"
-  ADDON_URL="https://mediafusion-proto-api-${REF_DOMAIN}/configure"
-fi
-
-echo "$ADDON_URL" > "$APP_DIR/config/addon-url.txt"
+# Configure URL points to MediaFusion configure page
+CONFIGURE_URL="https://mfprotoapi-${REF_DOMAIN}/configure"
+echo "$CONFIGURE_URL" > "$APP_DIR/config/addon-url.txt"
 
 echo "Creating landing page..."
 cat > "$APP_DIR/config/index.html" << 'HTMLEOF'
@@ -103,34 +58,36 @@ cat > "$APP_DIR/config/index.html" << 'HTMLEOF'
     Do NOT use in production - for internal testing only.
   </div>
 
-  <div class="success">
-    <strong>✓ Zero Config Required</strong><br>
-    Automatic sources are pre-configured. Just copy the URL below to Stremio.
+  <div class="step">
+    <h3>Step 1: Configure Addon</h3>
+    <p>Click below to configure your streaming settings:</p>
+    <a class="btn" id="u" href="#">Open Configure Page</a>
+    <p style="font-size:14px;color:#888;margin-top:10px">API Password: Your PCS password</p>
   </div>
 
   <div class="step">
-    <h3>Add to Stremio</h3>
-    <p>Copy this URL to Stremio:</p>
-    <div class="url" id="u">Loading...</div>
-    <button class="btn" onclick="location.href='stremio://'+u.replace(/^https?:\/\//,'')">Install in Stremio</button>
-    <button class="btn btn-s" onclick="navigator.clipboard.writeText(u).then(()=>alert('Copied!'))">Copy URL</button>
+    <h3>Step 2: qBittorrent Settings</h3>
+    <p>In the configure page, set:</p>
+    <ul style="font-size:14px;color:#ccc">
+      <li><strong>Streaming Provider:</strong> qBittorrent</li>
+      <li><strong>qBittorrent URL:</strong> http://qbittorrent:80/qbittorrent/</li>
+      <li><strong>Username:</strong> admin</li>
+      <li><strong>Password:</strong> (check qBittorrent logs)</li>
+      <li><strong>WebDAV URL:</strong> http://qbittorrent:80/webdav/</li>
+      <li><strong>WebDAV credentials:</strong> leave blank</li>
+    </ul>
   </div>
 
   <div class="step">
-    <h3>How it works</h3>
-    <ol>
-      <li>You search in Stremio</li>
-      <li>MediaFusion queries BT4G and YTS automatically</li>
-      <li>qBittorrent downloads with proper peer connectivity</li>
-      <li>Stream via WebDAV - 10x more peers than Stremio's engine</li>
-    </ol>
+    <h3>Step 3: Add to Stremio</h3>
+    <p>Generate the addon URL and add it to Stremio.</p>
   </div>
 
   <p style="margin-top:30px;color:#888;font-size:13px">
     Port 6881 exposed on IPv6 for incoming peer connections.
   </p>
 
-  <script>fetch('/addon-url.txt').then(r=>r.text()).then(t=>{u=t.trim();document.getElementById('u').textContent=u})</script>
+  <script>fetch('/addon-url.txt').then(r=>r.text()).then(t=>{document.getElementById('u').href=t.trim()})</script>
 </body>
 </html>
 HTMLEOF

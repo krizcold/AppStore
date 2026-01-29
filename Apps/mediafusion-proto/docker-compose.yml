@@ -175,6 +175,8 @@ services:
     restart: unless-stopped
     command: ["dramatiq", "api.task", "-p", "1", "-t", "4"]
     environment:
+      HOST_URL: "https://mfprotoapi-${REF_DOMAIN}"
+      API_PASSWORD: "${PCS_DEFAULT_PASSWORD}"
       MONGO_URI: "mongodb://mongodb:27017/mediafusion"
       POSTGRES_URI: "postgresql+asyncpg://mediafusion:mediafusion@postgres:5432/mediafusion"
       REDIS_URL: "redis://redis:6379"
