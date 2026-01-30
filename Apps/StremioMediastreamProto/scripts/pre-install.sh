@@ -76,8 +76,15 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
     .step h3{margin-top:0;color:#e94560}
     .step-num{display:inline-block;background:#e94560;color:#fff;width:28px;height:28px;border-radius:50%;text-align:center;line-height:28px;margin-right:10px;font-weight:bold}
     code{background:#0f3460;padding:2px 8px;border-radius:4px;font-family:monospace}
-    ul{padding-left:20px}
-    li{margin:8px 0}
+    ul{padding-left:20px;list-style:none}
+    li{margin:10px 0}
+    .copy-btn{background:#e94560;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:12px;margin-right:8px}
+    .copy-btn:hover{background:#ff6b6b}
+    .copy-btn.copied{background:#34d399}
+    .section-label{color:#888;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin:15px 0 8px 0}
+    .field-row{display:flex;align-items:center;margin:8px 0}
+    .field-label{min-width:140px;color:#ccc}
+    .field-value code{margin-left:5px}
   </style>
 </head>
 <body>
@@ -94,55 +101,99 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
 
   <div class="step">
     <h3><span class="step-num">1</span>Open Configure Page</h3>
-    <p>Click to open the MediaFusion configuration page:</p>
     <a class="btn" href="https://mediafusionprotoapi-${REF_DOMAIN}/configure" target="_blank">Open Configure Page ↗</a>
-    <p style="font-size:14px;color:#888;margin-top:10px">• Click <strong>"Pro User"</strong> to see all options</p>
+    <p class="section-label">At the very top of the page:</p>
+    <p style="color:#ccc">Click <strong>"Pro User"</strong> toggle to see all options</p>
   </div>
 
   <div class="step">
-    <h3><span class="step-num">2</span>Enable Live Search</h3>
-    <p>Scroll down to <strong>"Streaming Preferences"</strong> section:</p>
-    <ul style="font-size:14px;color:#ccc">
-      <li>✅ Check <strong>"Enable on-demand search for movies & series streams"</strong></li>
+    <h3><span class="step-num">2</span>Configure Streaming Provider</h3>
+    <p class="section-label">Section: "Streaming Provider" (2nd section from top)</p>
+    <ul>
+      <li class="field-row">
+        <span class="field-label">Streaming Provider:</span>
+        <span>Select <code>qBittorrent</code></span>
+      </li>
+      <li class="field-row">
+        <button class="copy-btn" onclick="copyText('http://qbittorrent:80/qbittorrent/')">Copy</button>
+        <span class="field-label">qBittorrent URL:</span>
+        <code>http://qbittorrent:80/qbittorrent/</code>
+      </li>
+      <li class="field-row">
+        <button class="copy-btn" onclick="copyText('admin')">Copy</button>
+        <span class="field-label">Username:</span>
+        <code>admin</code>
+      </li>
+      <li class="field-row">
+        <button class="copy-btn" onclick="copyText('${PCS_DEFAULT_PASSWORD}')">Copy</button>
+        <span class="field-label">Password:</span>
+        <code>${PCS_DEFAULT_PASSWORD}</code>
+      </li>
+      <li class="field-row">
+        <button class="copy-btn" onclick="copyText('http://qbittorrent:80/webdav/')">Copy</button>
+        <span class="field-label">WebDAV URL:</span>
+        <code>http://qbittorrent:80/webdav/</code>
+      </li>
+      <li class="field-row">
+        <span class="field-label">WebDAV Username:</span>
+        <span style="color:#888">(leave blank)</span>
+      </li>
+      <li class="field-row">
+        <span class="field-label">WebDAV Password:</span>
+        <span style="color:#888">(leave blank)</span>
+      </li>
     </ul>
-    <p style="font-size:14px;color:#fbbf24;margin-top:10px">Without this, no torrents will be found!</p>
   </div>
 
   <div class="step">
-    <h3><span class="step-num">3</span>Configure Streaming Provider</h3>
-    <p>In the configuration page, set these values:</p>
-    <ul style="font-size:14px;color:#ccc">
-      <li><strong>Streaming Provider:</strong> <code>qBittorrent</code></li>
-      <li><strong>qBittorrent URL:</strong> <code>http://qbittorrent:80/qbittorrent/</code></li>
-      <li><strong>Username:</strong> <code>admin</code></li>
-      <li><strong>Password:</strong> <code>${PCS_DEFAULT_PASSWORD}</code></li>
-      <li><strong>WebDAV URL:</strong> <code>http://qbittorrent:80/webdav/</code></li>
-      <li><strong>WebDAV Username:</strong> (leave blank)</li>
-      <li><strong>WebDAV Password:</strong> (leave blank)</li>
-    </ul>
+    <h3><span class="step-num">3</span>Enable Live Search</h3>
+    <p class="section-label">Section: "Live Search Streams" (scroll way down, near the END of the page)</p>
+    <p style="color:#ccc">✅ Check <strong>"Enable on-demand search for movies & series streams"</strong></p>
+    <p style="color:#fbbf24;margin-top:10px">⚠️ Without this, no torrents will be found!</p>
   </div>
 
   <div class="step">
-    <h3><span class="step-num">4</span>Generate & Install Addon</h3>
-    <p>Scroll down and click <strong>"Install in Stremio"</strong></p>
-    <p style="font-size:14px;color:#ccc;margin-top:10px">Or copy the addon URL and paste it in Stremio manually.</p>
+    <h3><span class="step-num">4</span>Install Addon</h3>
+    <p class="section-label">At the very bottom of the page:</p>
+    <p style="color:#ccc">Click <strong>"Install in Stremio"</strong></p>
   </div>
 
   <div class="step">
     <h3><span class="step-num">5</span>Add Your Torrent Sources</h3>
-    <p>Open Prowlarr to add your preferred torrent indexers:</p>
     <a class="btn btn-secondary" href="https://mediafusionprotoprowlarr-${REF_DOMAIN}/" target="_blank">Open Prowlarr ↗</a>
-    <ul style="font-size:14px;color:#ccc;margin-top:15px">
-      <li><strong>Username:</strong> <code>admin</code></li>
-      <li><strong>Password:</strong> <code>${PCS_DEFAULT_PASSWORD}</code></li>
+    <p class="section-label" style="margin-top:15px">Login credentials:</p>
+    <ul>
+      <li class="field-row">
+        <button class="copy-btn" onclick="copyText('admin')">Copy</button>
+        <span class="field-label">Username:</span>
+        <code>admin</code>
+      </li>
+      <li class="field-row">
+        <button class="copy-btn" onclick="copyText('${PCS_DEFAULT_PASSWORD}')">Copy</button>
+        <span class="field-label">Password:</span>
+        <code>${PCS_DEFAULT_PASSWORD}</code>
+      </li>
     </ul>
-    <p style="font-size:14px;color:#ccc;margin-top:10px">In Prowlarr: <strong>Settings → Indexers → Add Indexer</strong></p>
-    <p style="font-size:14px;color:#888;margin-top:5px">Add your preferred torrent indexers (e.g., 1337x, RARBG, etc.)</p>
+    <p class="section-label">In Prowlarr:</p>
+    <p style="color:#ccc">Go to <strong>Indexers → Add Indexer</strong> and add your preferred torrent sites (e.g., 1337x, TorrentGalaxy)</p>
   </div>
 
   <p style="margin-top:30px;color:#888;font-size:13px">
     Port 6881 exposed on IPv6 for 10x better peer connectivity.
   </p>
+
+  <script>
+  function copyText(text) {
+    navigator.clipboard.writeText(text).then(function() {
+      event.target.textContent = 'Copied!';
+      event.target.classList.add('copied');
+      setTimeout(function() {
+        event.target.textContent = 'Copy';
+        event.target.classList.remove('copied');
+      }, 1500);
+    });
+  }
+  </script>
 </body>
 </html>
 HTMLEOF
