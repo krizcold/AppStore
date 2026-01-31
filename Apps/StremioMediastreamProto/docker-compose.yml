@@ -333,8 +333,13 @@ services:
     image: ghcr.io/thephaseless/byparr:latest
     container_name: mediafusionprotobyparr
     restart: unless-stopped
+    user: "0:0"
     expose:
       - 8191
+    environment:
+      - UV_CACHE_DIR=/tmp/uv-cache
+    tmpfs:
+      - /tmp:size=256M
     networks:
       - pcs
     cpu_shares: 20
