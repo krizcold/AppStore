@@ -91,13 +91,19 @@ services:
       MONGO_URI: "mongodb://mongodb:27017/mediafusion"
       POSTGRES_URI: "postgresql+asyncpg://mediafusion:mediafusion@postgres:5432/mediafusion"
       REDIS_URL: "redis://redis:6379"
-      FLARESOLVERR_URL: "http://flaresolverr:8191/v1"
+      FLARESOLVERR_URL: "http://byparr:8191/v1"
       PLAYWRIGHT_CDP_URL: "ws://browserless:3000?blockAds=true&stealth=true"
-      # User configures their own sources via Prowlarr
-      IS_SCRAP_FROM_PROWLARR: "true"
-      PROWLARR_URL: "http://prowlarr:9696"
-      IS_SCRAP_FROM_BT4G: "false"
-      IS_SCRAP_FROM_YTS: "false"
+      # Prowlarr enabled - user must configure their own indexers
+      is_scrap_from_prowlarr: "true"
+      prowlarr_url: "http://prowlarr:9696"
+      # All built-in scrapers disabled by default (legal reasons)
+      # User can enable these manually if they choose
+      is_scrap_from_bt4g: "false"
+      is_scrap_from_yts: "false"
+      is_scrap_from_torrentio: "false"
+      is_scrap_from_mediafusion: "false"
+      is_scrap_from_zilean: "false"
+      is_scrap_from_jackett: "false"
     depends_on:
       mongodb:
         condition: service_healthy
@@ -322,18 +328,13 @@ services:
         limits:
           memory: 256M
 
-  # FlareSolverr - Cloudflare bypass
-  flaresolverr:
-    image: ghcr.io/flaresolverr/flaresolverr:latest
-    container_name: mediafusionprotoflaresolverr
+  # Byparr - Cloudflare bypass (replaces FlareSolverr which is now broken)
+  byparr:
+    image: ghcr.io/thephaseless/byparr:latest
+    container_name: mediafusionprotobyparr
     restart: unless-stopped
     expose:
       - 8191
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8191/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     networks:
       - pcs
     cpu_shares: 20

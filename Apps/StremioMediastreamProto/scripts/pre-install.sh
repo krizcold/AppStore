@@ -102,18 +102,17 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
   <div class="step">
     <h3><span class="step-num">1</span>Open Configure Page</h3>
     <a class="btn" href="https://mediafusionprotoapi-${REF_DOMAIN}/configure" target="_blank">Open Configure Page ↗</a>
-    <p class="section-label">At the very top of the page:</p>
+    <p class="section-label">Section 1: "Configuration Mode"</p>
     <p style="color:#ccc">Click <strong>"Pro User"</strong> toggle to see all options</p>
   </div>
 
   <div class="step">
     <h3><span class="step-num">2</span>Configure Streaming Provider</h3>
-    <p class="section-label">Section: "Streaming Provider" (2nd section from top)</p>
+    <p class="section-label">Section 2: "Streaming Provider Configuration"</p>
+    <p style="color:#ccc;margin-bottom:10px">Select <strong>qBittorrent</strong> from the dropdown</p>
+
+    <p class="section-label" style="margin-top:15px">Subsection: "qBittorrent Configuration" (appears after selecting qBittorrent)</p>
     <ul>
-      <li class="field-row">
-        <span class="field-label">Streaming Provider:</span>
-        <span>Select <code>qBittorrent</code></span>
-      </li>
       <li class="field-row">
         <button class="copy-btn" onclick="copyText('http://qbittorrent:80/qbittorrent/')">Copy</button>
         <span class="field-label">qBittorrent URL:</span>
@@ -129,33 +128,55 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
         <span class="field-label">Password:</span>
         <code>${PCS_DEFAULT_PASSWORD}</code>
       </li>
+    </ul>
+
+    <p class="section-label">Subsection: "WebDAV Configuration"</p>
+    <ul>
       <li class="field-row">
         <button class="copy-btn" onclick="copyText('http://qbittorrent:80/webdav/')">Copy</button>
         <span class="field-label">WebDAV URL:</span>
         <code>http://qbittorrent:80/webdav/</code>
       </li>
       <li class="field-row">
-        <span class="field-label">WebDAV Username:</span>
+        <span class="field-label">Username:</span>
         <span style="color:#888">(leave blank)</span>
       </li>
       <li class="field-row">
-        <span class="field-label">WebDAV Password:</span>
+        <span class="field-label">Password:</span>
         <span style="color:#888">(leave blank)</span>
       </li>
     </ul>
+
+    <p class="section-label" style="margin-top:15px">Section 3: "Catalog Configuration"</p>
+    <p style="color:#888;font-size:14px"><strong>Skip</strong> - Choose which categories appear in Stremio. Defaults are fine.</p>
+
+    <p class="section-label">Section 4: "Parental Guides"</p>
+    <p style="color:#888;font-size:14px"><strong>Skip</strong> - Content rating filters. Defaults allow all content.</p>
   </div>
 
   <div class="step">
     <h3><span class="step-num">3</span>Enable Live Search</h3>
-    <p class="section-label">Section: "Live Search Streams" (scroll way down, near the END of the page)</p>
-    <p style="color:#ccc">✅ Check <strong>"Enable on-demand search for movies & series streams"</strong></p>
+    <p class="section-label">Section 5: "Streaming Preferences"</p>
+    <p style="color:#ccc">Find and check: <strong>"Enable on-demand search for movies & series streams"</strong></p>
     <p style="color:#fbbf24;margin-top:10px">⚠️ Without this, no torrents will be found!</p>
+    <p style="color:#888;font-size:14px;margin-top:10px">This section also has resolution/quality filters and sorting options - <strong>optional</strong>, defaults work fine.</p>
+
+    <p class="section-label" style="margin-top:15px">Section 6: "External Services Configuration"</p>
+    <p style="color:#888;font-size:14px"><strong>Skip</strong> - For MediaFlow, RPDB, MDBList integration. Not needed.</p>
   </div>
 
   <div class="step">
-    <h3><span class="step-num">4</span>Install Addon</h3>
-    <p class="section-label">At the very bottom of the page:</p>
-    <p style="color:#ccc">Click <strong>"Install in Stremio"</strong></p>
+    <h3><span class="step-num">4</span>Set Password & Install</h3>
+    <p class="section-label">Section 7: "API Security Configuration" (bottom of page)</p>
+    <ul>
+      <li class="field-row">
+        <button class="copy-btn" onclick="copyText('${PCS_DEFAULT_PASSWORD}')">Copy</button>
+        <span class="field-label">API Password:</span>
+        <code>${PCS_DEFAULT_PASSWORD}</code>
+      </li>
+    </ul>
+    <p style="color:#ccc;margin-top:15px">Click <strong>"Copy Manifest URL"</strong> → paste into Stremio's search bar</p>
+    <p style="color:#888;font-size:14px;margin-top:10px">⚠️ Don't share your manifest URL - it contains your configuration.</p>
   </div>
 
   <div class="step">
@@ -174,8 +195,31 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
         <code>${PCS_DEFAULT_PASSWORD}</code>
       </li>
     </ul>
-    <p class="section-label">In Prowlarr:</p>
-    <p style="color:#ccc">Go to <strong>Indexers → Add Indexer</strong> and add your preferred torrent sites (e.g., 1337x, TorrentGalaxy)</p>
+
+    <p class="section-label" style="margin-top:15px">Step 5a: Enable Cloudflare Bypass (required for most sites)</p>
+    <p style="color:#ccc;font-size:14px">Go to <strong>Settings → Indexers → +</strong> → select <strong>FlareSolverr</strong></p>
+    <ul>
+      <li class="field-row">
+        <button class="copy-btn" onclick="copyText('http://byparr:8191')">Copy</button>
+        <span class="field-label">Host:</span>
+        <code>http://byparr:8191</code>
+      </li>
+      <li class="field-row">
+        <button class="copy-btn" onclick="copyText('cf')">Copy</button>
+        <span class="field-label">Tag:</span>
+        <code>cf</code>
+      </li>
+      <li class="field-row">
+        <span class="field-label">Request Timeout:</span>
+        <span style="color:#ccc">60 seconds</span>
+      </li>
+    </ul>
+    <p style="color:#fbbf24;font-size:14px">⚠️ The Tag is required! Without it, the proxy stays disabled.</p>
+
+    <p class="section-label" style="margin-top:15px">Step 5b: Add Indexers</p>
+    <p style="color:#ccc;font-size:14px">Go to <strong>Indexers → +</strong> → search for your site (e.g., 1337x)</p>
+    <p style="color:#ccc;font-size:14px">Scroll to bottom and add Tag: <code>cf</code> (must match the proxy tag)</p>
+    <p style="color:#888;font-size:14px">The tag tells Prowlarr to route this indexer through the Cloudflare bypass proxy.</p>
   </div>
 
   <p style="margin-top:30px;color:#888;font-size:13px">
