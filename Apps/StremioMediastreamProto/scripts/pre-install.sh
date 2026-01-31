@@ -9,30 +9,15 @@ mkdir -p "$APP_DIR"/{qbittorrent/downloads,qbittorrent/config/qBittorrent/config
 chown -R 1000:1000 "$APP_DIR" 2>/dev/null || true
 chmod -R 755 "$APP_DIR"
 
-echo "Pre-configuring qBittorrent with known password..."
-# Generate PBKDF2 hash for qBittorrent password (using PCS_DEFAULT_PASSWORD)
-QBT_PASSWORD_HASH=$(docker run --rm -e PASSWORD="${PCS_DEFAULT_PASSWORD}" python:3.11-alpine sh -c '
-pip install -q passlib 2>/dev/null
-python3 -c "
-import os, base64, hashlib
-password = os.environ[\"PASSWORD\"]
-salt = os.urandom(16)
-iterations = 100000
-dk = hashlib.pbkdf2_hmac(\"sha512\", password.encode(), salt, iterations, dklen=64)
-hash_str = base64.b64encode(salt + dk).decode()
-print(f\"@ByteArray({hash_str})\")
-"' 2>/dev/null)
-
-# Create qBittorrent config with pre-set password
-cat > "$APP_DIR/qbittorrent/config/qBittorrent/config/qBittorrent.conf" << QBTCONF
+# qBittorrent config - disable auth for internal network
+# Password set via WEBUI_PASSWORD env var in docker-compose instead
+cat > "$APP_DIR/qbittorrent/config/qBittorrent/config/qBittorrent.conf" << 'QBTCONF'
 [BitTorrent]
 Session\DefaultSavePath=/downloads
 Session\Port=6881
 Session\QueueingSystemEnabled=false
 
 [Preferences]
-WebUI\Username=admin
-WebUI\Password_PBKDF2=${QBT_PASSWORD_HASH}
 WebUI\LocalHostAuth=false
 WebUI\AuthSubnetWhitelistEnabled=true
 WebUI\AuthSubnetWhitelist=0.0.0.0/0
@@ -42,17 +27,18 @@ echo "Pre-configuring Prowlarr with known API key..."
 # Fixed API key - Prowlarr is only accessible internally on Docker network
 PROWLARR_API_KEY="a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"
 
-# Create Prowlarr config.xml with pre-set API key and auth
+# Create Prowlarr config.xml with pre-set API key (no auth for local)
 cat > "$APP_DIR/prowlarr/config.xml" << PROWLARRCONF
 <Config>
   <LogLevel>info</LogLevel>
   <UrlBase></UrlBase>
   <ApiKey>${PROWLARR_API_KEY}</ApiKey>
-  <AuthenticationMethod>Forms</AuthenticationMethod>
+  <AuthenticationMethod>None</AuthenticationMethod>
   <AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>
   <InstanceName>Prowlarr</InstanceName>
 </Config>
 PROWLARRCONF
+chmod 644 "$APP_DIR/prowlarr/config.xml"
 
 echo "Creating nginx proxy config for API..."
 cat > "$APP_DIR/nginx-api.conf" << 'NGINXCONF'
