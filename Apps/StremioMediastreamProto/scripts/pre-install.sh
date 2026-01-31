@@ -38,6 +38,22 @@ WebUI\AuthSubnetWhitelistEnabled=true
 WebUI\AuthSubnetWhitelist=0.0.0.0/0
 QBTCONF
 
+echo "Pre-configuring Prowlarr with known API key..."
+# Fixed API key - Prowlarr is only accessible internally on Docker network
+PROWLARR_API_KEY="a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"
+
+# Create Prowlarr config.xml with pre-set API key and auth
+cat > "$APP_DIR/prowlarr/config.xml" << PROWLARRCONF
+<Config>
+  <LogLevel>info</LogLevel>
+  <UrlBase></UrlBase>
+  <ApiKey>${PROWLARR_API_KEY}</ApiKey>
+  <AuthenticationMethod>Forms</AuthenticationMethod>
+  <AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>
+  <InstanceName>Prowlarr</InstanceName>
+</Config>
+PROWLARRCONF
+
 echo "Creating nginx proxy config for API..."
 cat > "$APP_DIR/nginx-api.conf" << 'NGINXCONF'
 server {

@@ -96,6 +96,7 @@ services:
       # Prowlarr enabled - user must configure their own indexers
       is_scrap_from_prowlarr: "true"
       prowlarr_url: "http://prowlarr:9696"
+      prowlarr_api_key: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"
       # All built-in scrapers disabled by default (legal reasons)
       # User can enable these manually if they choose
       is_scrap_from_bt4g: "false"
