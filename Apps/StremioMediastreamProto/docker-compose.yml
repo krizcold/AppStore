@@ -341,6 +341,10 @@ services:
       - UV_CACHE_DIR=/tmp/uv-cache
     tmpfs:
       - /tmp:size=256M
+    # Disable slow built-in healthcheck (their /health loads a page with Playwright, takes 30s+)
+    # Byparr is optional - not a dependency for other services
+    healthcheck:
+      disable: true
     networks:
       - pcs
     cpu_shares: 20
