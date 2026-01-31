@@ -14,8 +14,15 @@ services:
     tmpfs:
       - /var/cache/nginx:size=10M
       - /run:size=10M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     depends_on:
-      - mediafusion
+      mediafusion:
+        condition: service_healthy
     networks:
       - pcs
     cpu_shares: 10
@@ -40,8 +47,15 @@ services:
       AUTH_HASH: "$AUTH_HASH"
     tmpfs:
       - /var/cache/nginx:size=50M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     depends_on:
-      - landingbackend
+      landingbackend:
+        condition: service_healthy
     networks:
       - pcs
     cpu_shares: 10
@@ -114,10 +128,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 1m
+      interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 5m
+      start_period: 2m
     networks:
       - pcs
     cpu_shares: 50
