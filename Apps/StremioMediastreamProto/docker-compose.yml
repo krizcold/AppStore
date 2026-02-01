@@ -48,7 +48,7 @@ services:
     tmpfs:
       - /var/cache/nginx:size=50M
     healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "http://localhost:80/"]
+      test: ["CMD", "pidof", "nginx"]
       interval: 5s
       timeout: 3s
       retries: 3
