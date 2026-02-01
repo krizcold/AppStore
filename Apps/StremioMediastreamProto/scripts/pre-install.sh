@@ -10,14 +10,17 @@ chown -R 1000:1000 "$APP_DIR" 2>/dev/null || true
 chmod -R 755 "$APP_DIR"
 
 # Generate qBittorrent password hash (PBKDF2-SHA512, 100000 iterations)
+# Uses environment variable to avoid shell injection with special characters
 echo "Generating qBittorrent password hash..."
+export QB_PASSWORD="${PCS_DEFAULT_PASSWORD}"
 QB_PASS_HASH=$(python3 -c "
 import hashlib, base64, os
 salt = os.urandom(16)
-password = '${PCS_DEFAULT_PASSWORD}'
+password = os.environ['QB_PASSWORD']
 dk = hashlib.pbkdf2_hmac('sha512', password.encode(), salt, 100000, dklen=64)
 print('@ByteArray(' + base64.b64encode(salt).decode() + ':' + base64.b64encode(dk).decode() + ')')
 ")
+unset QB_PASSWORD
 
 # qBittorrent config with pre-set password
 cat > "$APP_DIR/qbittorrent/config/qBittorrent/config/qBittorrent.conf" << QBTCONF
@@ -61,6 +64,48 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+NGINXCONF
+
+echo "Creating nginx proxy config for qBittorrent API (duplicate torrent fix)..."
+cat > "$APP_DIR/nginx-qbapi.conf" << 'NGINXCONF'
+# Proxy for qBittorrent API that fixes duplicate torrent handling
+# Problem: MediaFusion doesn't check if torrent exists before adding
+#          qBittorrent returns "Fails." for duplicates, MediaFusion errors
+# Solution: Intercept add requests, forward to qBittorrent, always return "Ok."
+
+server {
+    listen 80;
+    resolver 127.0.0.11 valid=10s;
+
+    # Intercept torrent add endpoint
+    location = /qbittorrent/api/v2/torrents/add {
+        # Forward the request to real qBittorrent
+        proxy_pass http://qbittorrent:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+
+        # Capture the response but always return "Ok."
+        # This handles: new torrents (real Ok), duplicates (Fails->Ok), errors (Fails->Ok)
+        # Trade-off: Real errors masked, but MediaFusion will timeout anyway
+        header_filter_by_lua_block {
+            ngx.header.content_length = nil
+        }
+        body_filter_by_lua_block {
+            ngx.arg[1] = "Ok."
+            ngx.arg[2] = true
+        }
+    }
+
+    # All other qBittorrent API/WebUI requests pass through unchanged
+    location / {
+        proxy_pass http://qbittorrent:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
     }
 }
 NGINXCONF
@@ -158,17 +203,17 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
     <p class="section-label" style="margin-top:15px">Subsection: "qBittorrent Configuration" (appears after selecting qBittorrent)</p>
     <ul>
       <li class="field-row">
-        <button class="copy-btn" onclick="copyText('http://qbittorrent:80/qbittorrent/')">Copy</button>
+        <button class="copy-btn" onclick="copyText('http://qbittorrent-api:80/qbittorrent/', this)">Copy</button>
         <span class="field-label">qBittorrent URL:</span>
-        <code>http://qbittorrent:80/qbittorrent/</code>
+        <code>http://qbittorrent-api:80/qbittorrent/</code>
       </li>
       <li class="field-row">
-        <button class="copy-btn" onclick="copyText('admin')">Copy</button>
+        <button class="copy-btn" onclick="copyText('admin', this)">Copy</button>
         <span class="field-label">Username:</span>
         <code>admin</code>
       </li>
       <li class="field-row">
-        <button class="copy-btn" onclick="copyText('${PCS_DEFAULT_PASSWORD}')">Copy</button>
+        <button class="copy-btn" onclick="copyText('${PCS_DEFAULT_PASSWORD}', this)">Copy</button>
         <span class="field-label">Password:</span>
         <code>${PCS_DEFAULT_PASSWORD}</code>
       </li>
@@ -177,7 +222,7 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
     <p class="section-label">Subsection: "WebDAV Configuration"</p>
     <ul>
       <li class="field-row">
-        <button class="copy-btn" onclick="copyText('https://mediafusionprotowebdav-${REF_DOMAIN}/')">Copy</button>
+        <button class="copy-btn" onclick="copyText('https://mediafusionprotowebdav-${REF_DOMAIN}/', this)">Copy</button>
         <span class="field-label">WebDAV URL:</span>
         <code>https://mediafusionprotowebdav-${REF_DOMAIN}/</code>
       </li>
@@ -188,6 +233,11 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
       <li class="field-row">
         <span class="field-label">Password:</span>
         <span style="color:#888">(leave blank)</span>
+      </li>
+      <li class="field-row">
+        <button class="copy-btn" onclick="copyText('/webdav/', this)">Copy</button>
+        <span class="field-label">Downloads Path:</span>
+        <code>/webdav/</code>
       </li>
     </ul>
 
@@ -214,7 +264,7 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
     <p class="section-label">Section 7: "API Security Configuration" (bottom of page)</p>
     <ul>
       <li class="field-row">
-        <button class="copy-btn" onclick="copyText('${PCS_DEFAULT_PASSWORD}')">Copy</button>
+        <button class="copy-btn" onclick="copyText('${PCS_DEFAULT_PASSWORD}', this)">Copy</button>
         <span class="field-label">API Password:</span>
         <code>${PCS_DEFAULT_PASSWORD}</code>
       </li>
@@ -229,12 +279,12 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
     <p class="section-label" style="margin-top:15px">Login credentials:</p>
     <ul>
       <li class="field-row">
-        <button class="copy-btn" onclick="copyText('admin')">Copy</button>
+        <button class="copy-btn" onclick="copyText('admin', this)">Copy</button>
         <span class="field-label">Username:</span>
         <code>admin</code>
       </li>
       <li class="field-row">
-        <button class="copy-btn" onclick="copyText('${PCS_DEFAULT_PASSWORD}')">Copy</button>
+        <button class="copy-btn" onclick="copyText('${PCS_DEFAULT_PASSWORD}', this)">Copy</button>
         <span class="field-label">Password:</span>
         <code>${PCS_DEFAULT_PASSWORD}</code>
       </li>
@@ -254,13 +304,13 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
   </p>
 
   <script>
-  function copyText(text) {
+  function copyText(text, btn) {
     navigator.clipboard.writeText(text).then(function() {
-      event.target.textContent = 'Copied!';
-      event.target.classList.add('copied');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
       setTimeout(function() {
-        event.target.textContent = 'Copy';
-        event.target.classList.remove('copied');
+        btn.textContent = 'Copy';
+        btn.classList.remove('copied');
       }, 1500);
     });
   }
