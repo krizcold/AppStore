@@ -387,18 +387,17 @@ services:
           echo "FlareSolverr proxy already configured."
         else
           echo "Creating 'cf' tag..."
-          TAG_RESULT=$(curl -s -X POST "http://prowlarr:9696/api/v1/tag" \
+          curl -s -X POST "http://prowlarr:9696/api/v1/tag" \
             -H "Content-Type: application/json" \
             -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" \
-            -d '{"label":"cf"}')
-          TAG_ID=$(echo "$$TAG_RESULT" | grep -o '"id":[0-9]*' | grep -o '[0-9]*')
-          echo "Tag created with ID: $$TAG_ID"
-          echo "Adding FlareSolverr proxy with tag..."
+            -d '{"label":"cf"}' > /dev/null
+          echo "Adding FlareSolverr proxy with tag id 1..."
           curl -s -X POST "http://prowlarr:9696/api/v1/indexerproxy" \
             -H "Content-Type: application/json" \
             -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" \
-            -d "{\"name\":\"Byparr\",\"fields\":[{\"name\":\"host\",\"value\":\"http://byparr:8191\"},{\"name\":\"requestTimeout\",\"value\":180}],\"implementationName\":\"FlareSolverr\",\"implementation\":\"FlareSolverr\",\"configContract\":\"FlareSolverrSettings\",\"tags\":[$$TAG_ID]}"
-          echo "FlareSolverr proxy added."
+            -d '{"name":"Byparr","fields":[{"name":"host","value":"http://byparr:8191"},{"name":"requestTimeout","value":180}],"implementationName":"FlareSolverr","implementation":"FlareSolverr","configContract":"FlareSolverrSettings","tags":[1]}'
+          echo ""
+          echo "FlareSolverr proxy added with cf tag."
         fi
         echo "Setup complete."
     networks:
