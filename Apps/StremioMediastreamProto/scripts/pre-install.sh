@@ -9,15 +9,26 @@ mkdir -p "$APP_DIR"/{qbittorrent/downloads,qbittorrent/config/qBittorrent/config
 chown -R 1000:1000 "$APP_DIR" 2>/dev/null || true
 chmod -R 755 "$APP_DIR"
 
-# qBittorrent config - disable auth for internal network
-# Password set via WEBUI_PASSWORD env var in docker-compose instead
-cat > "$APP_DIR/qbittorrent/config/qBittorrent/config/qBittorrent.conf" << 'QBTCONF'
+# Generate qBittorrent password hash (PBKDF2-SHA512, 100000 iterations)
+echo "Generating qBittorrent password hash..."
+QB_PASS_HASH=$(python3 -c "
+import hashlib, base64, os
+salt = os.urandom(16)
+password = '${PCS_DEFAULT_PASSWORD}'
+dk = hashlib.pbkdf2_hmac('sha512', password.encode(), salt, 100000, dklen=64)
+print('@ByteArray(' + base64.b64encode(salt).decode() + ':' + base64.b64encode(dk).decode() + ')')
+")
+
+# qBittorrent config with pre-set password
+cat > "$APP_DIR/qbittorrent/config/qBittorrent/config/qBittorrent.conf" << QBTCONF
 [BitTorrent]
 Session\DefaultSavePath=/downloads
 Session\Port=6881
 Session\QueueingSystemEnabled=false
 
 [Preferences]
+WebUI\Username=admin
+WebUI\Password_PBKDF2=$QB_PASS_HASH
 WebUI\LocalHostAuth=false
 WebUI\AuthSubnetWhitelistEnabled=true
 WebUI\AuthSubnetWhitelist=0.0.0.0/0
@@ -50,6 +61,25 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+NGINXCONF
+
+echo "Creating nginx proxy config for WebDAV..."
+cat > "$APP_DIR/nginx-webdav.conf" << 'NGINXCONF'
+server {
+    listen 80;
+    location / {
+        proxy_pass http://qbittorrent:80/webdav/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Range $http_range;
+        proxy_set_header If-Range $http_if_range;
+        proxy_pass_header Accept-Ranges;
+        proxy_pass_header Content-Range;
+        proxy_pass_header Content-Length;
+        proxy_pass_header Content-Type;
+        proxy_buffering off;
     }
 }
 NGINXCONF
@@ -135,9 +165,9 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
     <p class="section-label">Subsection: "WebDAV Configuration"</p>
     <ul>
       <li class="field-row">
-        <button class="copy-btn" onclick="copyText('http://qbittorrent:80/webdav/')">Copy</button>
+        <button class="copy-btn" onclick="copyText('https://mediafusionprotowebdav-${REF_DOMAIN}/')">Copy</button>
         <span class="field-label">WebDAV URL:</span>
-        <code>http://qbittorrent:80/webdav/</code>
+        <code>https://mediafusionprotowebdav-${REF_DOMAIN}/</code>
       </li>
       <li class="field-row">
         <span class="field-label">Username:</span>
@@ -213,10 +243,11 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
       </li>
       <li class="field-row">
         <span class="field-label">Request Timeout:</span>
-        <span style="color:#ccc">60 seconds</span>
+        <span style="color:#ccc">120 seconds</span>
       </li>
     </ul>
     <p style="color:#fbbf24;font-size:14px">⚠️ The Tag is required! Without it, the proxy stays disabled.</p>
+    <p style="color:#888;font-size:14px;margin-top:8px">💡 The Test button takes ~2 minutes (Byparr runs a full browser test). Wait for it or just Save.</p>
 
     <p class="section-label" style="margin-top:15px">Step 5b: Add Indexers</p>
     <p style="color:#ccc;font-size:14px">Go to <strong>Indexers → +</strong> → search for your site (e.g., 1337x)</p>
