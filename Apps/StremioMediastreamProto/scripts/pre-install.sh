@@ -70,7 +70,19 @@ cat > "$APP_DIR/nginx-webdav.conf" << 'NGINXCONF'
 server {
     listen 80;
     location / {
-        proxy_pass http://qbittorrent:80/webdav/;
+        # CORS headers for Stremio web player
+        add_header Access-Control-Allow-Origin *;
+        add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS";
+        add_header Access-Control-Allow-Headers "Range, If-Range";
+        add_header Access-Control-Expose-Headers "Content-Length, Content-Range, Accept-Ranges";
+
+        # Handle preflight
+        if ($request_method = OPTIONS) {
+            return 204;
+        }
+
+        # Proxy to qBittorrent WebDAV (no /webdav/ suffix - MediaFusion adds it)
+        proxy_pass http://qbittorrent:80/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header Range $http_range;
