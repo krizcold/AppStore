@@ -240,31 +240,13 @@ cat > "$APP_DIR/config/index.html" << HTMLEOF
       </li>
     </ul>
 
-    <p class="section-label" style="margin-top:15px">Step 5a: Enable Cloudflare Bypass (required for most sites)</p>
-    <p style="color:#ccc;font-size:14px">Go to <strong>Settings → Indexers → +</strong> → select <strong>FlareSolverr</strong></p>
-    <ul>
-      <li class="field-row">
-        <button class="copy-btn" onclick="copyText('http://byparr:8191')">Copy</button>
-        <span class="field-label">Host:</span>
-        <code>http://byparr:8191</code>
-      </li>
-      <li class="field-row">
-        <button class="copy-btn" onclick="copyText('cf')">Copy</button>
-        <span class="field-label">Tag:</span>
-        <code>cf</code>
-      </li>
-      <li class="field-row">
-        <span class="field-label">Request Timeout:</span>
-        <span style="color:#ccc">120 seconds</span>
-      </li>
-    </ul>
-    <p style="color:#fbbf24;font-size:14px">⚠️ The Tag is required! Without it, the proxy stays disabled.</p>
-    <p style="color:#888;font-size:14px;margin-top:8px">💡 The Test button takes ~2 minutes (Byparr runs a full browser test). Wait for it or just Save.</p>
+    <p class="section-label" style="margin-top:15px">Cloudflare Bypass</p>
+    <p style="color:#34d399;font-size:14px">✓ FlareSolverr (Byparr) is <strong>auto-configured</strong>. No manual setup needed.</p>
 
-    <p class="section-label" style="margin-top:15px">Step 5b: Add Indexers</p>
-    <p style="color:#ccc;font-size:14px">Go to <strong>Indexers → +</strong> → search for your site (e.g., 1337x)</p>
-    <p style="color:#ccc;font-size:14px">Scroll to bottom and add Tag: <code>cf</code> (must match the proxy tag)</p>
-    <p style="color:#888;font-size:14px">The tag tells Prowlarr to route this indexer through the Cloudflare bypass proxy.</p>
+    <p class="section-label" style="margin-top:15px">Add Indexers</p>
+    <p style="color:#ccc;font-size:14px">Go to <strong>Indexers → +</strong> → search for your site (e.g., 1337x, Nyaa)</p>
+    <p style="color:#fbbf24;font-size:14px;margin-top:8px">⚠️ For sites with Cloudflare protection: scroll to bottom and add Tag: <code>cf</code></p>
+    <p style="color:#888;font-size:14px">The tag routes the indexer through the Cloudflare bypass proxy (Byparr).</p>
   </div>
 
   <p style="margin-top:30px;color:#888;font-size:13px">
