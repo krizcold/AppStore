@@ -58,30 +58,63 @@ echo "Creating Prowlarr setup script..."
 mkdir -p "$APP_DIR/scripts"
 cat > "$APP_DIR/scripts/prowlarr-setup.sh" << 'SETUPSCRIPT'
 #!/bin/sh
+API_KEY="a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"
+API_URL="http://prowlarr:9696/api/v1"
+
 echo "Waiting for Prowlarr to be ready..."
-until curl -s -f "http://prowlarr:9696/api/v1/health" -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" > /dev/null 2>&1; do
+until curl -s -f "$API_URL/health" -H "X-Api-Key: $API_KEY" > /dev/null 2>&1; do
   sleep 5
 done
-echo "Prowlarr is ready. Checking if FlareSolverr proxy exists..."
-EXISTING=$(curl -s "http://prowlarr:9696/api/v1/indexerproxy" -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4")
-if echo "$EXISTING" | grep -q "FlareSolverr"; then
-  echo "FlareSolverr proxy already configured."
+echo "Prowlarr is ready."
+
+# Step 1: Ensure 'cf' tag exists and get its ID
+echo "Checking for 'cf' tag..."
+TAGS=$(curl -s "$API_URL/tag" -H "X-Api-Key: $API_KEY")
+if echo "$TAGS" | grep -q '"label":"cf"'; then
+  echo "Tag 'cf' already exists."
 else
   echo "Creating 'cf' tag..."
-  TAG_RESPONSE=$(curl -s -X POST "http://prowlarr:9696/api/v1/tag" \
-    -H "Content-Type: application/json" \
-    -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" \
-    -d '{"label":"cf"}')
-  TAG_ID=$(echo "$TAG_RESPONSE" | grep -o '"id":[0-9]*' | grep -o '[0-9]*')
-  echo "Created tag with ID: $TAG_ID"
-  echo "Adding FlareSolverr proxy with tag id $TAG_ID..."
-  curl -s -X POST "http://prowlarr:9696/api/v1/indexerproxy" \
-    -H "Content-Type: application/json" \
-    -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" \
-    -d "{\"name\":\"Byparr\",\"fields\":[{\"name\":\"host\",\"value\":\"http://byparr:8191\"},{\"name\":\"requestTimeout\",\"value\":180}],\"implementationName\":\"FlareSolverr\",\"implementation\":\"FlareSolverr\",\"configContract\":\"FlareSolverrSettings\",\"tags\":[$TAG_ID]}"
-  echo ""
-  echo "FlareSolverr proxy added with cf tag."
+  curl -s -X POST "$API_URL/tag" -H "Content-Type: application/json" -H "X-Api-Key: $API_KEY" -d '{"label":"cf"}' > /dev/null
 fi
+
+# Get the cf tag ID using simple string manipulation (busybox compatible)
+TAGS=$(curl -s "$API_URL/tag" -H "X-Api-Key: $API_KEY")
+# Extract ID for cf tag - format is [{"label":"cf","id":1}]
+TAG_ID=$(echo "$TAGS" | tr ',' '\n' | grep -A1 '"label":"cf"' | grep '"id"' | tr -dc '0-9')
+if [ -z "$TAG_ID" ]; then
+  # Fallback: try alternate format {"id":1,"label":"cf"}
+  TAG_ID=$(echo "$TAGS" | tr '}' '\n' | grep '"cf"' | tr ':' '\n' | tr -dc '0-9' | head -c 10)
+fi
+echo "Tag 'cf' has ID: $TAG_ID"
+
+# Step 2: Check if Byparr proxy exists
+echo "Checking for Byparr proxy..."
+PROXIES=$(curl -s "$API_URL/indexerproxy" -H "X-Api-Key: $API_KEY")
+
+if echo "$PROXIES" | grep -q '"name":"Byparr"'; then
+  # Proxy exists - check if it has the tag
+  if echo "$PROXIES" | grep -q '"tags":\['"$TAG_ID"'\]'; then
+    echo "Byparr proxy already configured with cf tag."
+  else
+    echo "Updating Byparr proxy to add cf tag..."
+    # Get proxy ID
+    PROXY_ID=$(echo "$PROXIES" | tr '}' '\n' | grep '"Byparr"' | tr ':' '\n' | tr -dc '0-9' | head -c 10)
+    curl -s -X PUT "$API_URL/indexerproxy/$PROXY_ID" \
+      -H "Content-Type: application/json" \
+      -H "X-Api-Key: $API_KEY" \
+      -d "{\"id\":$PROXY_ID,\"name\":\"Byparr\",\"fields\":[{\"name\":\"host\",\"value\":\"http://byparr:8191\"},{\"name\":\"requestTimeout\",\"value\":180}],\"implementationName\":\"FlareSolverr\",\"implementation\":\"FlareSolverr\",\"configContract\":\"FlareSolverrSettings\",\"tags\":[$TAG_ID]}" > /dev/null
+    echo "Byparr proxy updated with cf tag."
+  fi
+else
+  # Create new proxy
+  echo "Creating Byparr proxy with cf tag..."
+  curl -s -X POST "$API_URL/indexerproxy" \
+    -H "Content-Type: application/json" \
+    -H "X-Api-Key: $API_KEY" \
+    -d "{\"name\":\"Byparr\",\"fields\":[{\"name\":\"host\",\"value\":\"http://byparr:8191\"},{\"name\":\"requestTimeout\",\"value\":180}],\"implementationName\":\"FlareSolverr\",\"implementation\":\"FlareSolverr\",\"configContract\":\"FlareSolverrSettings\",\"tags\":[$TAG_ID]}" > /dev/null
+  echo "Byparr proxy created with cf tag."
+fi
+
 echo "Setup complete."
 SETUPSCRIPT
 chmod +x "$APP_DIR/scripts/prowlarr-setup.sh"
