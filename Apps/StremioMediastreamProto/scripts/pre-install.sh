@@ -146,22 +146,17 @@ server {
     listen 80;
     resolver 127.0.0.11 valid=10s;
 
-    # Intercept torrent add endpoint - mirror to qBittorrent, return Ok immediately
+    # Intercept torrent add endpoint - proxy to qBittorrent, replace "Fails." with "Ok."
     location = /qbittorrent/api/v2/torrents/add {
-        mirror /mirror_torrent_add;
-        mirror_request_body on;
-        default_type text/plain;
-        return 200 "Ok.";
-    }
-
-    # Internal location for mirrored request (fire-and-forget to real qBittorrent)
-    location = /mirror_torrent_add {
-        internal;
         proxy_pass http://qbittorrent:8080/api/v2/torrents/add;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_pass_request_body on;
         proxy_set_header Content-Type $content_type;
+
+        # Replace "Fails." response with "Ok." to handle duplicates
+        sub_filter_types text/plain;
+        sub_filter 'Fails.' 'Ok.';
+        sub_filter_once on;
     }
 
     # All other qBittorrent API/WebUI requests - strip /qbittorrent/ prefix
