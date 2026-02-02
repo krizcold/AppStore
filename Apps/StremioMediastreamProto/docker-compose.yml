@@ -10,7 +10,7 @@ services:
     expose:
       - 80
     volumes:
-      - /DATA/AppData/mediafusionproto/config:/usr/share/nginx/html:ro
+      - /DATA/AppData/mediafusionproto/config/:/usr/share/nginx/html/:ro
     tmpfs:
       - /var/cache/nginx:size=10M
       - /run:size=10M
@@ -154,8 +154,8 @@ services:
       PUID: "1000"
       PGID: "1000"
     volumes:
-      - /DATA/AppData/mediafusionproto/qbittorrent/downloads:/downloads
-      - /DATA/AppData/mediafusionproto/qbittorrent/config:/config
+      - /DATA/AppData/mediafusionproto/qbittorrent/downloads/:/downloads/
+      - /DATA/AppData/mediafusionproto/qbittorrent/config/:/config/
     networks:
       - pcs
 
@@ -313,7 +313,7 @@ services:
       - "-c"
       - "work_mem=8MB"
     volumes:
-      - /DATA/AppData/mediafusionproto/postgres:/var/lib/postgresql/data
+      - /DATA/AppData/mediafusionproto/postgres/:/var/lib/postgresql/data/
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mediafusion -d mediafusion"]
       interval: 10s
@@ -335,7 +335,7 @@ services:
     restart: unless-stopped
     user: "0:0"
     volumes:
-      - /DATA/AppData/mediafusionproto/mongodb:/data/db
+      - /DATA/AppData/mediafusionproto/mongodb/:/data/db/
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
       interval: 10s
@@ -358,7 +358,7 @@ services:
     user: "0:0"
     command: redis-server --appendonly yes --save 60 1
     volumes:
-      - /DATA/AppData/mediafusionproto/redis:/data
+      - /DATA/AppData/mediafusionproto/redis/:/data/
     healthcheck:
       test: ["CMD-SHELL", "redis-cli --raw INFO | grep -q '^loading:0'"]
       interval: 10s
@@ -384,7 +384,7 @@ services:
     expose:
       - 9696
     volumes:
-      - /DATA/AppData/mediafusionproto/prowlarr:/config
+      - /DATA/AppData/mediafusionproto/prowlarr/:/config/
     networks:
       - pcs
     cpu_shares: 20
@@ -400,34 +400,9 @@ services:
     depends_on:
       - prowlarr
     restart: "no"
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        echo "Waiting for Prowlarr to be ready..."
-        until curl -s -f "http://prowlarr:9696/api/v1/health" -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" > /dev/null 2>&1; do
-          sleep 5
-        done
-        echo "Prowlarr is ready. Checking if FlareSolverr proxy exists..."
-        EXISTING=$$(curl -s "http://prowlarr:9696/api/v1/indexerproxy" -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4")
-        if echo "$$EXISTING" | grep -q "FlareSolverr"; then
-          echo "FlareSolverr proxy already configured."
-        else
-          echo "Creating 'cf' tag..."
-          TAG_RESPONSE=$$(curl -s -X POST "http://prowlarr:9696/api/v1/tag" \
-            -H "Content-Type: application/json" \
-            -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" \
-            -d '{"label":"cf"}')
-          TAG_ID=$$(echo "$$TAG_RESPONSE" | grep -o '"id":[0-9]*' | grep -o '[0-9]*')
-          echo "Created tag with ID: $$TAG_ID"
-          echo "Adding FlareSolverr proxy with tag id $$TAG_ID..."
-          curl -s -X POST "http://prowlarr:9696/api/v1/indexerproxy" \
-            -H "Content-Type: application/json" \
-            -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" \
-            -d "{\"name\":\"Byparr\",\"fields\":[{\"name\":\"host\",\"value\":\"http://byparr:8191\"},{\"name\":\"requestTimeout\",\"value\":180}],\"implementationName\":\"FlareSolverr\",\"implementation\":\"FlareSolverr\",\"configContract\":\"FlareSolverrSettings\",\"tags\":[$$TAG_ID]}"
-          echo ""
-          echo "FlareSolverr proxy added with cf tag."
-        fi
-        echo "Setup complete."
+    volumes:
+      - /DATA/AppData/mediafusionproto/scripts/:/scripts/:ro
+    entrypoint: ["/bin/sh", "/scripts/prowlarr-setup.sh"]
     networks:
       - pcs
 

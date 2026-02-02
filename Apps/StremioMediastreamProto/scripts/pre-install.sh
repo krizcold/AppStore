@@ -54,6 +54,38 @@ cat > "$APP_DIR/prowlarr/config.xml" << PROWLARRCONF
 PROWLARRCONF
 chmod 644 "$APP_DIR/prowlarr/config.xml"
 
+echo "Creating Prowlarr setup script..."
+mkdir -p "$APP_DIR/scripts"
+cat > "$APP_DIR/scripts/prowlarr-setup.sh" << 'SETUPSCRIPT'
+#!/bin/sh
+echo "Waiting for Prowlarr to be ready..."
+until curl -s -f "http://prowlarr:9696/api/v1/health" -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" > /dev/null 2>&1; do
+  sleep 5
+done
+echo "Prowlarr is ready. Checking if FlareSolverr proxy exists..."
+EXISTING=$(curl -s "http://prowlarr:9696/api/v1/indexerproxy" -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4")
+if echo "$EXISTING" | grep -q "FlareSolverr"; then
+  echo "FlareSolverr proxy already configured."
+else
+  echo "Creating 'cf' tag..."
+  TAG_RESPONSE=$(curl -s -X POST "http://prowlarr:9696/api/v1/tag" \
+    -H "Content-Type: application/json" \
+    -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" \
+    -d '{"label":"cf"}')
+  TAG_ID=$(echo "$TAG_RESPONSE" | grep -o '"id":[0-9]*' | grep -o '[0-9]*')
+  echo "Created tag with ID: $TAG_ID"
+  echo "Adding FlareSolverr proxy with tag id $TAG_ID..."
+  curl -s -X POST "http://prowlarr:9696/api/v1/indexerproxy" \
+    -H "Content-Type: application/json" \
+    -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" \
+    -d "{\"name\":\"Byparr\",\"fields\":[{\"name\":\"host\",\"value\":\"http://byparr:8191\"},{\"name\":\"requestTimeout\",\"value\":180}],\"implementationName\":\"FlareSolverr\",\"implementation\":\"FlareSolverr\",\"configContract\":\"FlareSolverrSettings\",\"tags\":[$TAG_ID]}"
+  echo ""
+  echo "FlareSolverr proxy added with cf tag."
+fi
+echo "Setup complete."
+SETUPSCRIPT
+chmod +x "$APP_DIR/scripts/prowlarr-setup.sh"
+
 echo "Creating nginx proxy config for API..."
 cat > "$APP_DIR/nginx-api.conf" << 'NGINXCONF'
 server {
