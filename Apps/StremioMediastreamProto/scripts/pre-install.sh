@@ -90,16 +90,16 @@ server {
     # Internal location for mirrored request (fire-and-forget to real qBittorrent)
     location = /mirror_torrent_add {
         internal;
-        proxy_pass http://qbittorrent:8080/qbittorrent/api/v2/torrents/add;
+        proxy_pass http://qbittorrent:8080/api/v2/torrents/add;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_pass_request_body on;
         proxy_set_header Content-Type $content_type;
     }
 
-    # All other qBittorrent API/WebUI requests pass through unchanged
-    location / {
-        proxy_pass http://qbittorrent:8080;
+    # All other qBittorrent API/WebUI requests - strip /qbittorrent/ prefix
+    location /qbittorrent/ {
+        proxy_pass http://qbittorrent:8080/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
