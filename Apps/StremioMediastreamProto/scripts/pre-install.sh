@@ -73,29 +73,28 @@ cat > "$APP_DIR/nginx-qbapi.conf" << 'NGINXCONF'
 # Proxy for qBittorrent API that fixes duplicate torrent handling
 # Problem: MediaFusion doesn't check if torrent exists before adding
 #          qBittorrent returns "Fails." for duplicates, MediaFusion errors
-# Solution: Intercept add requests, forward to qBittorrent, always return "Ok."
+# Solution: Use nginx mirror to fire-and-forget to qBittorrent, always return "Ok."
 
 server {
     listen 80;
     resolver 127.0.0.11 valid=10s;
 
-    # Intercept torrent add endpoint
+    # Intercept torrent add endpoint - mirror to qBittorrent, return Ok immediately
     location = /qbittorrent/api/v2/torrents/add {
-        # Forward the request to real qBittorrent
-        proxy_pass http://qbittorrent:80;
+        mirror /mirror_torrent_add;
+        mirror_request_body on;
+        default_type text/plain;
+        return 200 "Ok.";
+    }
+
+    # Internal location for mirrored request (fire-and-forget to real qBittorrent)
+    location = /mirror_torrent_add {
+        internal;
+        proxy_pass http://qbittorrent:80/qbittorrent/api/v2/torrents/add;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-
-        # Capture the response but always return "Ok."
-        # This handles: new torrents (real Ok), duplicates (Fails->Ok), errors (Fails->Ok)
-        # Trade-off: Real errors masked, but MediaFusion will timeout anyway
-        header_filter_by_lua_block {
-            ngx.header.content_length = nil
-        }
-        body_filter_by_lua_block {
-            ngx.arg[1] = "Ok."
-            ngx.arg[2] = true
-        }
+        proxy_pass_request_body on;
+        proxy_set_header Content-Type $content_type;
     }
 
     # All other qBittorrent API/WebUI requests pass through unchanged

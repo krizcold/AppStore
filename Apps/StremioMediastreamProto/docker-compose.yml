@@ -162,9 +162,9 @@ services:
   # qBittorrent API proxy - fixes duplicate torrent handling
   # MediaFusion bug: doesn't check if torrent exists before adding
   # qBittorrent returns "Fails." for duplicates, MediaFusion treats as error
-  # This proxy intercepts add requests and always returns "Ok."
+  # This proxy uses nginx mirror to fire-and-forget to qBittorrent while returning "Ok."
   qbittorrent-api:
-    image: openresty/openresty:alpine
+    image: nginx:alpine
     container_name: mediafusionprotoqbittorrentapi
     restart: unless-stopped
     user: "0:0"
@@ -174,7 +174,6 @@ services:
       - /DATA/AppData/mediafusionproto/nginx-qbapi.conf:/etc/nginx/conf.d/default.conf:ro
     tmpfs:
       - /var/cache/nginx:size=10M
-      - /var/run/openresty:size=10M
       - /run:size=10M
     depends_on:
       - qbittorrent
