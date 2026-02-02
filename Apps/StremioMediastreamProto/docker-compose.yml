@@ -21,8 +21,7 @@ services:
       retries: 3
       start_period: 5s
     depends_on:
-      mediafusion:
-        condition: service_healthy
+      - mediafusion
     networks:
       - pcs
     cpu_shares: 10
@@ -54,8 +53,7 @@ services:
       retries: 3
       start_period: 5s
     depends_on:
-      landingbackend:
-        condition: service_healthy
+      - landingbackend
     networks:
       - pcs
     cpu_shares: 10
@@ -120,12 +118,9 @@ services:
       is_scrap_from_zilean: "false"
       is_scrap_from_jackett: "false"
     depends_on:
-      mongodb:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - mongodb
+      - postgres
+      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
