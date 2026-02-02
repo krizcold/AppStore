@@ -408,7 +408,7 @@ services:
           sleep 5
         done
         echo "Prowlarr is ready. Checking if FlareSolverr proxy exists..."
-        EXISTING=$(curl -s "http://prowlarr:9696/api/v1/indexerproxy" -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4")
+        EXISTING=$$(curl -s "http://prowlarr:9696/api/v1/indexerproxy" -H "X-Api-Key: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4")
         if echo "$$EXISTING" | grep -q "FlareSolverr"; then
           echo "FlareSolverr proxy already configured."
         else
