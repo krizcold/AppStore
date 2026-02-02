@@ -77,13 +77,12 @@ else
   curl -s -X POST "$API_URL/tag" -H "Content-Type: application/json" -H "X-Api-Key: $API_KEY" -d '{"label":"cf"}' > /dev/null
 fi
 
-# Get the cf tag ID using simple string manipulation (busybox compatible)
+# Get the cf tag ID - remove whitespace and parse
 TAGS=$(curl -s "$API_URL/tag" -H "X-Api-Key: $API_KEY")
-# Extract ID for cf tag - format is [{"label":"cf","id":1}]
-TAG_ID=$(echo "$TAGS" | tr ',' '\n' | grep -A1 '"label":"cf"' | grep '"id"' | tr -dc '0-9')
-if [ -z "$TAG_ID" ]; then
-  # Fallback: try alternate format {"id":1,"label":"cf"}
-  TAG_ID=$(echo "$TAGS" | tr '}' '\n' | grep '"cf"' | tr ':' '\n' | tr -dc '0-9' | head -c 10)
+TAG_ID=$(echo "$TAGS" | tr -d ' \n' | sed 's/.*"cf","id":\([0-9]*\).*/\1/')
+# Fallback for alternate JSON key order {"id":1,"label":"cf"}
+if [ -z "$TAG_ID" ] || [ "$TAG_ID" = "$(echo "$TAGS" | tr -d ' \n')" ]; then
+  TAG_ID=$(echo "$TAGS" | tr -d ' \n' | sed 's/.*"id":\([0-9]*\),"label":"cf".*/\1/')
 fi
 echo "Tag 'cf' has ID: $TAG_ID"
 
@@ -97,8 +96,11 @@ if echo "$PROXIES" | grep -q '"name":"Byparr"'; then
     echo "Byparr proxy already configured with cf tag."
   else
     echo "Updating Byparr proxy to add cf tag..."
-    # Get proxy ID
-    PROXY_ID=$(echo "$PROXIES" | tr '}' '\n' | grep '"Byparr"' | tr ':' '\n' | tr -dc '0-9' | head -c 10)
+    # Get proxy ID - remove whitespace and parse
+    PROXY_ID=$(echo "$PROXIES" | tr -d ' \n' | sed 's/.*"name":"Byparr".*"id":\([0-9]*\).*/\1/')
+    if [ -z "$PROXY_ID" ] || [ "$PROXY_ID" = "$(echo "$PROXIES" | tr -d ' \n')" ]; then
+      PROXY_ID=$(echo "$PROXIES" | tr -d ' \n' | sed 's/.*"id":\([0-9]*\).*"name":"Byparr".*/\1/')
+    fi
     curl -s -X PUT "$API_URL/indexerproxy/$PROXY_ID" \
       -H "Content-Type: application/json" \
       -H "X-Api-Key: $API_KEY" \
