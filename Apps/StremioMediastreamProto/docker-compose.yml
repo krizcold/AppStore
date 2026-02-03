@@ -127,6 +127,9 @@ services:
       timeout: 10s
       retries: 5
       start_period: 2m
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - pcs
     cpu_shares: 50
@@ -276,6 +279,9 @@ services:
       - mongodb
       - postgres
       - redis
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - pcs
     cpu_shares: 30
@@ -377,6 +383,9 @@ services:
       - 9696
     volumes:
       - /DATA/AppData/mediafusionproto/prowlarr/:/config/
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - pcs
     cpu_shares: 20
@@ -419,6 +428,9 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - pcs
     cpu_shares: 50
@@ -446,6 +458,9 @@ services:
             -d '{"cmd":"request.get","url":"https://example.com","maxTimeout":60000}' > /dev/null 2>&1 || true
           sleep 120
         done
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - pcs
     cpu_shares: 5
@@ -468,6 +483,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - pcs
     cpu_shares: 30
