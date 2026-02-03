@@ -273,12 +273,9 @@ services:
       REDIS_URL: "redis://redis:6379"
       SECRET_KEY: "${PCS_DEFAULT_PASSWORD}!mfkey!!"
     depends_on:
-      mongodb:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - mongodb
+      - postgres
+      - redis
     networks:
       - pcs
     cpu_shares: 30
