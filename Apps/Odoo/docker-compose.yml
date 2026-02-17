@@ -1,0 +1,223 @@
+name: odoo
+
+services:
+  postgres:
+    image: postgres:15.15
+    user: "0:0"
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: $APP_DEFAULT_PASSWORD
+      PGDATA: /var/lib/postgresql/data/pgdata/
+      PUID: "0"
+      PGID: "0"
+    volumes:
+      - /DATA/AppData/$AppID/postgres-data/:/var/lib/postgresql/data/
+    cpu_shares: 50
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  odoo:
+    image: odoo:18.0
+    user: "0:0"
+    command: >-
+      odoo
+      --http-port=80
+      --smtp=smtp
+      --smtp-port=587
+      --smtp-user=casaos
+      --smtp-password=${APP_DEFAULT_PASSWORD}
+      --email-from=odoo@${APP_DOMAIN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - 80
+    labels:
+      - "caddy=odoo-${APP_DOMAIN}"
+      - "caddy.reverse_proxy={{upstreams 80}}"
+    environment:
+      HOST: postgres
+      USER: odoo
+      PASSWORD: $APP_DEFAULT_PASSWORD
+      PUID: "0"
+      PGID: "0"
+      TZ: $TZ
+    volumes:
+      - /DATA/AppData/$AppID/odoo-data/:/var/lib/odoo/
+      - /DATA/AppData/$AppID/config/:/etc/odoo/
+      - /DATA/AppData/$AppID/addons/:/mnt/extra-addons/
+    cpu_shares: 70
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks:
+      - pcs
+    restart: unless-stopped
+
+networks:
+  pcs:
+    name: pcs
+    external: true
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: odoo
+  webui_port: 80
+  category: Business
+  author: CasaOS Team
+  developer: Odoo S.A.
+  icon: https://cdn.jsdelivr.net/gh/Yundera/AppStore@main/Apps/Odoo/icon.png
+  screenshot_link:
+    - https://cdn.jsdelivr.net/gh/Yundera/AppStore@main/Apps/Odoo/screenshot-1.png
+    - https://cdn.jsdelivr.net/gh/Yundera/AppStore@main/Apps/Odoo/screenshot-2.png
+    - https://cdn.jsdelivr.net/gh/Yundera/AppStore@main/Apps/Odoo/screenshot-3.png
+  thumbnail: https://cdn.jsdelivr.net/gh/Yundera/AppStore@main/Apps/Odoo/screenshot-1.png
+  title:
+    en_us: Odoo
+    ko_kr: 오두
+    zh_cn: Odoo
+    es_es: Odoo
+    fr_fr: Odoo
+  tagline:
+    en_us: Open Source ERP and CRM
+    ko_kr: 오픈소스 ERP 및 CRM 솔루션
+    zh_cn: 开源ERP和CRM解决方案
+    es_es: ERP y CRM de código abierto
+    fr_fr: ERP et CRM open source
+  description:
+    en_us: |
+      Odoo is a suite of open source business apps that cover all your company needs: CRM, eCommerce, accounting, inventory, point of sale, project management, and more.
+
+      Odoo's unique value proposition is to be at the same time very easy to use and fully integrated.
+
+      **📧 Email Integration:**
+      This version uses Yundera's built-in SMTP service for email delivery - invoices, notifications, and customer communications work automatically!
+    ko_kr: |
+      Odoo는 CRM, 전자상거래, 회계, 재고 관리, POS, 프로젝트 관리 등 회사의 모든 비즈니스 요구사항을 충족하는 오픈 소스 비즈니스 앱 모음입니다.
+
+      Odoo의 고유한 가치는 사용이 매우 쉬우면서도 완전히 통합되어 있다는 점입니다.
+
+      **📧 이메일 통합:**
+      이 버전은 Yundera의 내장 SMTP 서비스를 사용합니다 - 송장, 알림, 고객 커뮤니케이션이 자동으로 작동합니다!
+    zh_cn: |
+      Odoo 是一套开源业务应用程序,涵盖公司的所有需求:CRM、电子商务、会计、库存、销售点、项目管理等。
+
+      Odoo 的独特价值主张是同时非常易于使用且完全集成。
+
+      **📧 邮件集成：**
+      此版本使用Yundera内置的SMTP服务 - 发票、通知和客户沟通自动运行！
+    es_es: |
+      Odoo es un conjunto de aplicaciones empresariales de código abierto que cubren todas las necesidades de su empresa: CRM, comercio electrónico, contabilidad, inventario, punto de venta, gestión de proyectos y más.
+
+      La propuesta de valor única de Odoo es ser al mismo tiempo muy fácil de usar y totalmente integrado.
+
+      **📧 Integración de Email:**
+      Esta versión utiliza el servicio SMTP integrado de Yundera - ¡facturas, notificaciones y comunicaciones con clientes funcionan automáticamente!
+    fr_fr: |
+      Odoo est une suite d'applications commerciales open source qui couvrent tous les besoins de votre entreprise : CRM, commerce électronique, comptabilité, inventaire, point de vente, gestion de projet et plus encore.
+
+      La proposition de valeur unique d'Odoo est d'être à la fois très facile à utiliser et entièrement intégré.
+
+      **📧 Intégration Email :**
+      Cette version utilise le service SMTP intégré de Yundera - factures, notifications et communications clients fonctionnent automatiquement !
+  tips:
+    before_install:
+      en_us: |
+        ## Initial Setup Information
+        
+        After installation, use the following information to create your database on first access:
+        
+        | Item | Value |
+        | --- | --- |
+        | Master Password | `$APP_DEFAULT_PASSWORD` |
+        | Database Name | `odoo` |
+        | Email | Admin email address |
+        | Password | Admin account password |
+        | Language | Select your preferred language |
+        | Country | Your country |
+        
+        **Note**: 
+        - Initial setup may take a few minutes
+        - After database creation, you can log in with your admin account
+      ko_kr: |
+        ## 초기 설정 정보
+        
+        설치 후 첫 접속시 다음 정보를 사용하여 데이터베이스를 생성하세요:
+        
+        | 항목 | 값 |
+        | --- | --- |
+        | 마스터 비밀번호 | `$APP_DEFAULT_PASSWORD` |
+        | 데이터베이스 이름 | `odoo` |
+        | 이메일 | 관리자 이메일 주소 |
+        | 비밀번호 | 관리자 계정 비밀번호 |
+        | 언어 | 원하는 언어 선택 |
+        | 국가 | 대한민국 |
+        
+        **참고**: 
+        - 첫 설정 시 몇 분이 소요될 수 있습니다
+        - 데이터베이스 생성 후 관리자 계정으로 로그인할 수 있습니다
+      zh_cn: |
+        ## 初始设置信息
+        
+        安装后首次访问时,使用以下信息创建数据库:
+        
+        | 项目 | 值 |
+        | --- | --- |
+        | 主密码 | `$APP_DEFAULT_PASSWORD` |
+        | 数据库名称 | `odoo` |
+        | 电子邮件 | 管理员电子邮件地址 |
+        | 密码 | 管理员帐户密码 |
+        | 语言 | 选择您的首选语言 |
+        | 国家 | 您的国家 |
+        
+        **注意**: 
+        - 初始设置可能需要几分钟
+        - 创建数据库后,您可以使用管理员帐户登录
+      es_es: |
+        ## Información de configuración inicial
+        
+        Después de la instalación, use la siguiente información para crear su base de datos en el primer acceso:
+        
+        | Elemento | Valor |
+        | --- | --- |
+        | Contraseña maestra | `$APP_DEFAULT_PASSWORD` |
+        | Nombre de la base de datos | `odoo` |
+        | Correo electrónico | Dirección de correo electrónico del administrador |
+        | Contraseña | Contraseña de la cuenta de administrador |
+        | Idioma | Seleccione su idioma preferido |
+        | País | Su país |
+        
+        **Nota**: 
+        - La configuración inicial puede tardar unos minutos
+        - Después de crear la base de datos, puede iniciar sesión con su cuenta de administrador
+      fr_fr: |
+        ## Informations de configuration initiale
+        
+        Après l'installation, utilisez les informations suivantes pour créer votre base de données lors du premier accès:
+        
+        | Élément | Valeur |
+        | --- | --- |
+        | Mot de passe principal | `$APP_DEFAULT_PASSWORD` |
+        | Nom de la base de données | `odoo` |
+        | Email | Adresse e-mail de l'administrateur |
+        | Mot de passe | Mot de passe du compte administrateur |
+        | Langue | Sélectionnez votre langue préférée |
+        | Pays | Votre pays |
+        
+        **Remarque**: 
+        - La configuration initiale peut prendre quelques minutes
+        - Après la création de la base de données, vous pouvez vous connecter avec votre compte administrateur
+  index: /
+  scheme: https
