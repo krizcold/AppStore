@@ -61,6 +61,7 @@ services:
         limits:
           memory: 1G
     networks:
+      - default
       - pcs
     restart: unless-stopped
 

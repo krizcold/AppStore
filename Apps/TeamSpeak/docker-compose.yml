@@ -1,0 +1,331 @@
+name: teamspeak
+
+services:
+  teamspeak:
+    image: teamspeak:3.13.7
+    restart: unless-stopped
+    cpu_shares: 50
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    ports:
+      - "9987:9987/udp"
+      - "30033:30033/tcp"
+    expose:
+      - "10011"
+      - "10022"
+    environment:
+      TS3SERVER_LICENSE: accept
+      TS3SERVER_DB_PLUGIN: ts3db_sqlite3
+      TS3SERVER_DB_SQLCREATEPATH: create_sqlite
+      TS3SERVER_QUERY_PROTOCOLS: raw,ssh
+      PCS_DEFAULT_PASSWORD: $DEFAULT_PWD
+      PCS_DOMAIN: $DOMAIN
+      PCS_DATA_ROOT: /DATA
+      PCS_PUBLIC_IP: $PUBLIC_IPV4
+      PCS_PUBLIC_IPV6: $PUBLIC_IPV6
+      PCS_EMAIL: admin@$DOMAIN
+    volumes:
+      - /DATA/AppData/teamspeak/data:/var/ts3server
+    networks:
+      - pcs
+
+networks:
+  pcs:
+    name: pcs
+    external: true
+
+x-casaos:
+  architectures:
+    - amd64
+  main: teamspeak
+  author: Worph Team
+  category: Communication
+  description:
+    en_us: |
+      **What is TeamSpeak?**
+
+      **TeamSpeak** is a professional voice communication application designed for crystal-clear, low-latency voice chat. Originally built for gaming, it's now used by businesses, education, and communities worldwide for reliable real-time communication.
+
+      **Key Features:**
+      - Crystal-clear voice quality with minimal latency
+      - Powerful permission system with channels and groups
+      - File transfer between users and channels
+      - Server and channel chat alongside voice
+      - Customizable with plugins and themes
+      - Encrypted communication (AES-256)
+
+      **Why choose TeamSpeak?**
+
+      - **Self-hosted** --- your conversations stay on your server
+      - **Low latency** --- faster than most alternatives
+      - **Lightweight** --- minimal server resources needed
+      - **Scalable** --- supports hundreds of concurrent users
+      - **No ads, no tracking** --- your privacy is respected
+
+      **Getting Started:**
+
+      1. Install the app on Yundera
+      2. Download the **TeamSpeak Client** on your PC, Mac, or mobile device
+      3. Connect using your server's public IP and port 9987
+      4. The admin token is shown in the container logs on first startup
+    fr_fr: |
+      **Qu'est-ce que TeamSpeak ?**
+
+      **TeamSpeak** est une application de communication vocale professionnelle pour des conversations claires et a faible latence. Utilise par les joueurs, les entreprises et les communautes du monde entier.
+
+      **Fonctionnalites principales :**
+      - Qualite vocale cristalline avec latence minimale
+      - Systeme de permissions puissant avec canaux et groupes
+      - Transfert de fichiers entre utilisateurs et canaux
+      - Chat textuel en plus de la voix
+      - Personnalisable avec des plugins et themes
+      - Communication chiffree (AES-256)
+
+      **Pour commencer :**
+
+      1. Installez l'application sur Yundera
+      2. Telechargez le **client TeamSpeak** sur votre appareil
+      3. Connectez-vous avec l'IP publique du serveur et le port 9987
+      4. Le token admin est affiche dans les logs au premier demarrage
+    ko_kr: |
+      **TeamSpeak란?**
+
+      **TeamSpeak**는 깨끗하고 낮은 지연 시간의 음성 채팅을 위한 전문 음성 통신 애플리케이션입니다. 게이머, 기업, 커뮤니티에서 전 세계적으로 사용됩니다.
+
+      **주요 기능:**
+      - 최소 지연 시간의 맑은 음성 품질
+      - 채널 및 그룹을 통한 강력한 권한 시스템
+      - 사용자 및 채널 간 파일 전송
+      - 음성과 함께 텍스트 채팅
+      - 플러그인 및 테마로 커스터마이즈 가능
+      - 암호화된 통신 (AES-256)
+
+      **시작하기:**
+
+      1. Yundera에 앱 설치
+      2. PC, Mac 또는 모바일에 **TeamSpeak 클라이언트** 다운로드
+      3. 서버의 공개 IP와 포트 9987로 연결
+      4. 관리자 토큰은 첫 시작 시 컨테이너 로그에 표시됩니다
+    zh_cn: |
+      **什么是TeamSpeak？**
+
+      **TeamSpeak** 是一款专业的语音通信应用，提供清晰、低延迟的语音聊天。被全球游戏玩家、企业和社区广泛使用。
+
+      **核心功能：**
+      - 极低延迟的清晰语音质量
+      - 强大的频道和群组权限系统
+      - 用户和频道间的文件传输
+      - 语音之外的文字聊天
+      - 可通过插件和主题自定义
+      - 加密通信 (AES-256)
+
+      **开始使用：**
+
+      1. 在Yundera上安装应用
+      2. 在PC、Mac或移动设备上下载 **TeamSpeak客户端**
+      3. 使用服务器的公共IP和端口9987连接
+      4. 管理员令牌在首次启动时显示在容器日志中
+    es_es: |
+      **Que es TeamSpeak?**
+
+      **TeamSpeak** es una aplicacion de comunicacion de voz profesional para chat de voz claro y de baja latencia. Utilizada por jugadores, empresas y comunidades en todo el mundo.
+
+      **Caracteristicas principales:**
+      - Calidad de voz cristalina con latencia minima
+      - Potente sistema de permisos con canales y grupos
+      - Transferencia de archivos entre usuarios y canales
+      - Chat de texto junto con voz
+      - Personalizable con plugins y temas
+      - Comunicacion cifrada (AES-256)
+
+      **Para comenzar:**
+
+      1. Instala la aplicacion en Yundera
+      2. Descarga el **cliente TeamSpeak** en tu dispositivo
+      3. Conectate usando la IP publica del servidor y el puerto 9987
+      4. El token de administrador se muestra en los logs del contenedor en el primer inicio
+    de_de: |
+      **Was ist TeamSpeak?**
+
+      **TeamSpeak** ist eine professionelle Sprachkommunikationsanwendung fuer kristallklare Sprachqualitaet mit minimaler Latenz. Weltweit von Gamern, Unternehmen und Communities genutzt.
+
+      **Hauptfunktionen:**
+      - Kristallklare Sprachqualitaet mit minimaler Latenz
+      - Leistungsstarkes Berechtigungssystem mit Kanaelen und Gruppen
+      - Dateiuebertragung zwischen Benutzern und Kanaelen
+      - Text-Chat neben Sprache
+      - Anpassbar mit Plugins und Themes
+      - Verschluesselte Kommunikation (AES-256)
+
+      **Erste Schritte:**
+
+      1. Installieren Sie die App auf Yundera
+      2. Laden Sie den **TeamSpeak Client** auf Ihrem Geraet herunter
+      3. Verbinden Sie sich mit der oeffentlichen IP des Servers und Port 9987
+      4. Das Admin-Token wird beim ersten Start in den Container-Logs angezeigt
+  developer: TeamSpeak Systems GmbH
+  icon: https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/TeamSpeak/icon.png
+  screenshot_link:
+    - https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/TeamSpeak/screenshot-1.png
+    - https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/TeamSpeak/screenshot-2.png
+    - https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/TeamSpeak/screenshot-3.png
+  thumbnail: https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/TeamSpeak/screenshot-1.png
+  tagline:
+    en_us: Professional voice communication server
+    fr_fr: Serveur de communication vocale professionnel
+    ko_kr: 전문 음성 통신 서버
+    zh_cn: 专业语音通信服务器
+    es_es: Servidor de comunicacion de voz profesional
+    de_de: Professioneller Sprachkommunikationsserver
+  title:
+    en_us: TeamSpeak
+  tips:
+    before_install:
+      en_us: |
+        **Important: Voice Server - No Web UI**
+
+        TeamSpeak is a voice communication server. There is no web interface. Users connect using the **TeamSpeak Client** application.
+
+        **Connection Details:**
+
+        | Setting | Value |
+        |---------|-------|
+        | Server Address | `$PCS_PUBLIC_IP` |
+        | Voice Port | `9987` (UDP) |
+        | File Transfer Port | `30033` (TCP) |
+        | ServerQuery Port | `10011` (TCP) |
+
+        **First Start - Admin Token:**
+
+        On first startup, TeamSpeak generates a **Server Admin Token** in the container logs. You need this token to claim admin privileges:
+
+        1. Check the logs: `docker logs teamspeak`
+        2. Look for the line: `token=XXXXX`
+        3. Open TeamSpeak Client and connect to your server
+        4. Go to **Permissions > Use Privilege Key** and paste the token
+
+        **Architecture:** This app only supports **amd64** (x86_64). ARM devices are not supported.
+
+        **Ports:** Voice port 9987/UDP and file transfer port 30033/TCP are exposed directly on the host. Make sure these ports are open in your firewall.
+      fr_fr: |
+        **Important : Serveur vocal - Pas d'interface web**
+
+        TeamSpeak est un serveur de communication vocale. Il n'y a pas d'interface web. Les utilisateurs se connectent avec l'application **client TeamSpeak**.
+
+        **Details de connexion :**
+
+        | Parametre | Valeur |
+        |-----------|--------|
+        | Adresse du serveur | `$PCS_PUBLIC_IP` |
+        | Port vocal | `9987` (UDP) |
+        | Port transfert fichiers | `30033` (TCP) |
+        | Port ServerQuery | `10011` (TCP) |
+
+        **Premier demarrage - Token admin :**
+
+        Au premier demarrage, TeamSpeak genere un **Token Admin** dans les logs. Vous en avez besoin pour obtenir les privileges administrateur :
+
+        1. Consultez les logs : `docker logs teamspeak`
+        2. Cherchez la ligne : `token=XXXXX`
+        3. Ouvrez le client TeamSpeak et connectez-vous a votre serveur
+        4. Allez dans **Permissions > Utiliser la cle de privilege** et collez le token
+
+        **Architecture :** Cette application ne supporte que **amd64** (x86_64). Les appareils ARM ne sont pas supportes.
+      ko_kr: |
+        **중요: 음성 서버 - 웹 UI 없음**
+
+        TeamSpeak는 음성 통신 서버입니다. 웹 인터페이스가 없습니다. 사용자는 **TeamSpeak 클라이언트** 애플리케이션으로 연결합니다.
+
+        **연결 정보:**
+
+        | 설정 | 값 |
+        |------|-----|
+        | 서버 주소 | `$PCS_PUBLIC_IP` |
+        | 음성 포트 | `9987` (UDP) |
+        | 파일 전송 포트 | `30033` (TCP) |
+        | ServerQuery 포트 | `10011` (TCP) |
+
+        **첫 시작 - 관리자 토큰:**
+
+        첫 시작 시 TeamSpeak는 컨테이너 로그에 **서버 관리자 토큰**을 생성합니다:
+
+        1. 로그 확인: `docker logs teamspeak`
+        2. `token=XXXXX` 라인을 찾으세요
+        3. TeamSpeak 클라이언트를 열고 서버에 연결
+        4. **권한 > 권한 키 사용**에서 토큰을 붙여넣으세요
+
+        **아키텍처:** 이 앱은 **amd64** (x86_64)만 지원합니다. ARM 장치는 지원되지 않습니다.
+      zh_cn: |
+        **重要：语音服务器 - 无Web界面**
+
+        TeamSpeak是语音通信服务器，没有Web界面。用户使用 **TeamSpeak客户端** 应用程序连接。
+
+        **连接详情：**
+
+        | 设置 | 值 |
+        |------|-----|
+        | 服务器地址 | `$PCS_PUBLIC_IP` |
+        | 语音端口 | `9987` (UDP) |
+        | 文件传输端口 | `30033` (TCP) |
+        | ServerQuery端口 | `10011` (TCP) |
+
+        **首次启动 - 管理员令牌：**
+
+        首次启动时，TeamSpeak会在容器日志中生成 **服务器管理员令牌**：
+
+        1. 查看日志：`docker logs teamspeak`
+        2. 查找包含 `token=XXXXX` 的行
+        3. 打开TeamSpeak客户端并连接到服务器
+        4. 前往 **权限 > 使用特权密钥** 并粘贴令牌
+
+        **架构：** 此应用仅支持 **amd64** (x86_64)。不支持ARM设备。
+      es_es: |
+        **Importante: Servidor de voz - Sin interfaz web**
+
+        TeamSpeak es un servidor de comunicacion de voz. No hay interfaz web. Los usuarios se conectan usando la aplicacion **cliente TeamSpeak**.
+
+        **Detalles de conexion:**
+
+        | Configuracion | Valor |
+        |---------------|-------|
+        | Direccion del servidor | `$PCS_PUBLIC_IP` |
+        | Puerto de voz | `9987` (UDP) |
+        | Puerto transferencia | `30033` (TCP) |
+        | Puerto ServerQuery | `10011` (TCP) |
+
+        **Primer inicio - Token de admin:**
+
+        En el primer inicio, TeamSpeak genera un **Token de Admin del Servidor** en los logs:
+
+        1. Revisa los logs: `docker logs teamspeak`
+        2. Busca la linea: `token=XXXXX`
+        3. Abre el cliente TeamSpeak y conectate a tu servidor
+        4. Ve a **Permisos > Usar clave de privilegio** y pega el token
+
+        **Arquitectura:** Esta aplicacion solo soporta **amd64** (x86_64). Los dispositivos ARM no estan soportados.
+      de_de: |
+        **Wichtig: Sprachserver - Keine Weboberflaeche**
+
+        TeamSpeak ist ein Sprachkommunikationsserver. Es gibt keine Weboberflaeche. Benutzer verbinden sich mit der **TeamSpeak Client** Anwendung.
+
+        **Verbindungsdetails:**
+
+        | Einstellung | Wert |
+        |-------------|------|
+        | Serveradresse | `$PCS_PUBLIC_IP` |
+        | Sprachport | `9987` (UDP) |
+        | Dateitransfer-Port | `30033` (TCP) |
+        | ServerQuery-Port | `10011` (TCP) |
+
+        **Erster Start - Admin-Token:**
+
+        Beim ersten Start generiert TeamSpeak ein **Server-Admin-Token** in den Container-Logs:
+
+        1. Logs pruefen: `docker logs teamspeak`
+        2. Suchen Sie die Zeile: `token=XXXXX`
+        3. Oeffnen Sie den TeamSpeak Client und verbinden Sie sich
+        4. Gehen Sie zu **Berechtigungen > Berechtigungsschluessel verwenden** und fuegen Sie das Token ein
+
+        **Architektur:** Diese App unterstuetzt nur **amd64** (x86_64). ARM-Geraete werden nicht unterstuetzt.
