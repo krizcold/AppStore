@@ -15,6 +15,9 @@ services:
     expose:
       - "10011"
       - "10022"
+    labels:
+      - "caddy=vaultwarden-${APP_DOMAIN}"
+      - "caddy.reverse_proxy={{upstreams 80}}"
     environment:
       TS3SERVER_LICENSE: accept
       TS3SERVER_DB_PLUGIN: ts3db_sqlite3
@@ -40,7 +43,7 @@ x-casaos:
   architectures:
     - amd64
   main: teamspeak
-  author: Worph Team
+  author: kriz_cold
   category: Communication
   description:
     en_us: |
