@@ -7,6 +7,9 @@ services:
     restart: unless-stopped
     expose:
       - "3000"
+    labels:
+      - "caddy=vaultwarden-${APP_DOMAIN}"
+      - "caddy.reverse_proxy={{upstreams 3000}}"
     user: "root"
     environment:
       AUTH_HASH: $AUTH_HASH
