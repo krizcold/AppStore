@@ -162,3 +162,4 @@ x-casaos:
   store_app_id: yunderadevkit
   is_uncontrolled: false
   index: /?hash=$AUTH_HASH
+  webui_port: 80
