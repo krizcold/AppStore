@@ -1,22 +1,22 @@
-name: yunderagithubcompiler
+name: yunderadevkit
 
 services:
-  yunderagithubcompiler:
-    image: krizcold/nginxhashlock:latest
-    container_name: yunderagithubcompiler
+  yunderadevkit:
+    image: ghcr.io/yundera/nginx-hash-lock:latest
+    container_name: yunderadevkit
     restart: unless-stopped
     expose:
       - "3000"
     user: "root"
     environment:
       AUTH_HASH: $AUTH_HASH
-      BACKEND_HOST: "yunderagithubcompilerapp"
+      BACKEND_HOST: "yunderadevkitapp"
       BACKEND_PORT: "3000"
       LISTEN_PORT: "3000"
       ALLOWED_EXTENSIONS: "js,css,png,ico,svg,jpg,jpeg,gif,woff,woff2,ttf,eot"
       ALLOWED_PATHS: "api/app,build-info"
     depends_on:
-      - yunderagithubcompilerapp
+      - yunderadevkitapp
     networks:
       - pcs
     privileged: true
@@ -24,9 +24,9 @@ services:
       - SYS_ADMIN
       - NET_ADMIN
 
-  yunderagithubcompilerapp:
-    image: krizcold/yundera-github-compiler:latest
-    container_name: yunderagithubcompilerapp
+  yunderadevkitapp:
+    image: ghcr.io/krizcold/yundera-dev-kit:latest
+    container_name: yunderadevkitapp
     restart: unless-stopped
     user: "root"
     entrypoint: ["/bin/sh"]
@@ -37,54 +37,60 @@ services:
     environment:
       # Application settings
       WEBUI_PORT: "3000"
-      
+
       # CasaOS integration
       DEPLOYMENT_MODE: "appstore"
       CASAOS_API_HOST: "localhost"
       CASAOS_API_PORT: "8080"
-      DATA_ROOT: $DATA_ROOT
-      
-      # Yundera platform integration (unused - set to blank)
-      DOMAIN: ""
-      PROVIDER_STR: ""
-      UID: ""
-      DEFAULT_PWD: ""
-      PUBLIC_IP: ""
-      DEFAULT_USER: ""
-      
-      # Authentication and paths (unused - set to blank)
-      JWT_SECRET: ""
-      AUTHORITY_ENDPOINT: ""
-      COMPOSE_FOLDER_PATH: ""
-      BASE_PATH: ""
-      MOCK: ""
-      
+
       # Pass through the host's CasaOS environment variables.
       # These will be populated by the AppStore during installation.
+
+      # Hardcoded/built-in variables
       PUID: $PUID
       PGID: $PGID
-      REF_DOMAIN: $REF_DOMAIN
-      REF_NET: $REF_NET
-      REF_PORT: $REF_PORT
-      REF_SCHEME: $REF_SCHEME
-      REF_SEPARATOR: $REF_SEPARATOR
-      
-      # Debug/logging settings (unused - set to blank)
-      LOG_APPS_BEACON: ""      
-      
-      user: $user
+      TZ: $TZ
+      DefaultUserName: $DefaultUserName
+      DefaultPassword: $DefaultPassword
+
+      # CasaOS container OS environment variables
       default_pwd: $default_pwd
       public_ip: $public_ip
+      domain: $domain
+      USER: $USER
+
+      # PCS environment variables (MUST be included)
+      PCS_DEFAULT_PASSWORD: $PCS_DEFAULT_PASSWORD
+      PCS_DOMAIN: $PCS_DOMAIN
+      PCS_DATA_ROOT: $PCS_DATA_ROOT
+      PCS_PUBLIC_IP: $PCS_PUBLIC_IP
+      PCS_PUBLIC_IPV6: $PCS_PUBLIC_IPV6
+      PCS_EMAIL: $PCS_EMAIL
+
+      # REF variables
+      REF_DOMAIN: $REF_DOMAIN
+      REF_NET: $REF_NET
+      REF_SCHEME: $REF_SCHEME
+      REF_PORT: $REF_PORT
+      REF_SEPARATOR: $REF_SEPARATOR
+      REF_DEFAULT_PORT: $REF_DEFAULT_PORT
+
+      # Data root
+      DATA_ROOT: $DATA_ROOT
+
+      # SMTP variables
+      SMTP_HOST: $SMTP_HOST
+      SMTP_PORT: $SMTP_PORT
 
     volumes:        
       # cloned repos
       - type: bind
-        source: /DATA/AppData/yunderagithubcompiler/repos
+        source: /DATA/AppData/yunderadevkit/repos
         target: /app/repos
 
       # persistent UI data storage
       - type: bind
-        source: /DATA/AppData/yunderagithubcompiler/uidata
+        source: /DATA/AppData/yunderadevkit/uidata
         target: /app/uidata
 
       # Writable mount for app metadata
@@ -94,8 +100,8 @@ services:
 
       # Bind mount for the main app directory
       - type: bind
-        source: /DATA/AppData/casaos/apps/yunderagithubcompiler
-        target: /DATA/AppData/casaos/apps/yunderagithubcompiler
+        source: /DATA/AppData/casaos/apps/yunderadevkit
+        target: /DATA/AppData/casaos/apps/yunderadevkit
         read_only: true
 
       - type: bind
@@ -139,22 +145,18 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  main: yunderagithubcompiler
+  main: yunderadevkit
   author: krizcold
   developer: krizcold
-  icon: https://cdn.statically.io/gh/krizcold/Yundera-Github-Compiler/main/YunderaCompiler.png
+  icon: https://cdn.statically.io/gh/krizcold/Yundera-Dev-Kit/main/YunderaCompiler.png
   tagline:
     en_us: "Automatically build and deploy GitHub repos on Yundera"
   category: Utilities
   description:
     en_us: "Clone, build, and run Docker-based projects directly from GitHub URLs."
   title:
-    en_us: "Yundera GitHub Compiler"
-  store_app_id: yunderagithubcompiler
+    en_us: "Yundera Dev Kit"
+  store_app_id: yunderadevkit
   is_uncontrolled: false
   index: /?hash=$AUTH_HASH
   webui_port: 3000
-  pre-install-cmd: |
-    mkdir -p /DATA/AppData/yunderagithubcompiler/{repos,uidata} 2>/dev/null
-    chown -R ubuntu:988 /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || true
-    chmod -R 755 /DATA/AppData/yunderagithubcompiler/ 2>/dev/null || true
