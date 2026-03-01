@@ -19,9 +19,9 @@ services:
       TS3SERVER_QUERY_PROTOCOLS: raw,ssh
       TS3_SERVERADMIN_PASSWORD: $APP_DEFAULT_PASSWORD
     tmpfs:
-      - /var/run/ts3server:uid=1000,gid=1000
+      - /var/run/ts3server/:uid=1000,gid=1000
     volumes:
-      - /DATA/AppData/teamspeak/data:/var/ts3server/
+      - /DATA/AppData/teamspeak/data/:/var/ts3server/
 
   ts3-manager:
     image: joni1802/ts3-manager
