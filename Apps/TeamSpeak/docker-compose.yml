@@ -164,7 +164,7 @@ x-casaos:
 
       Diese App beinhaltet **TS3 Manager**, ein webbasiertes Admin-Panel zur Verwaltung Ihres TeamSpeak-Servers --- Kanaele, Benutzer, Berechtigungen und mehr --- direkt aus Ihrem Browser.
   developer: TeamSpeak Systems GmbH
-  icon: https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/TeamSpeak/icon.png
+  icon: https://cdn.jsdelivr.net/gh/krizcold/AppStore@main/Apps/TeamSpeak/icon.png
   screenshot_link:
     - https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/TeamSpeak/screenshot-1.png
     - https://cdn.jsdelivr.net/gh/Worph/AppStore@main/Apps/TeamSpeak/screenshot-2.png
