@@ -11,13 +11,12 @@ services:
       resources:
         limits:
           memory: 512M
-    entrypoint: ["sh", "-c", "echo '0.0.0.0/0' > /var/ts3server/query_ip_allowlist.txt && exec /opt/ts3server/entrypoint.sh ts3server serveradmin_password=$$TS3_SERVERADMIN_PASSWORD"]
+    entrypoint: ["sh", "-c", "echo '0.0.0.0/0' > /var/ts3server/query_ip_allowlist.txt && exec /opt/ts3server/entrypoint.sh ts3server serveradmin_password=$APP_DEFAULT_PASSWORD"]
     environment:
       TS3SERVER_LICENSE: accept
       TS3SERVER_DB_PLUGIN: ts3db_sqlite3
       TS3SERVER_DB_SQLCREATEPATH: create_sqlite
       TS3SERVER_QUERY_PROTOCOLS: raw,ssh
-      TS3_SERVERADMIN_PASSWORD: $APP_DEFAULT_PASSWORD
     tmpfs:
       - /var/run/ts3server/:uid=1000,gid=1000
     volumes:
