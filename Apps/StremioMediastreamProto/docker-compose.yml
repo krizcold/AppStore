@@ -1,498 +1,169 @@
-name: mediafusionproto
+name: stremiotorrentbridge
 
 services:
-  # Landing page backend - serves static HTML (no external hostname)
-  landingbackend:
-    image: nginx:alpine
-    container_name: mediafusionprotolandingbackend
-    restart: unless-stopped
-    user: "0:0"
-    expose:
-      - 80
-    volumes:
-      - /DATA/AppData/mediafusionproto/config/:/usr/share/nginx/html/:ro
-    tmpfs:
-      - /var/cache/nginx:size=10M
-      - /run:size=10M
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
-    depends_on:
-      - mediafusion
-    networks:
-      - pcs
-    cpu_shares: 10
-    deploy:
-      resources:
-        limits:
-          memory: 64M
-
-  # Landing page proxy - hash-protected access
-  landing:
+# Web UI Proxy (nginx-hash-lock protection)
+  stremiotorrentbridge:
     image: ghcr.io/yundera/nginx-hash-lock:latest
-    container_name: mediafusionprotolanding
-    hostname: mediafusionproto
+    container_name: stremio-bridge-ui
+    hostname: stremiobridge
     restart: unless-stopped
+    cpu_shares: 80
     user: "root"
     expose:
       - 80
     environment:
-      BACKEND_HOST: "landingbackend"
-      BACKEND_PORT: "80"
+      BACKEND_HOST: "bridge"
+      BACKEND_PORT: "8080"
       LISTEN_PORT: "80"
       AUTH_HASH: "$AUTH_HASH"
+      ALLOWED_PATHS: "wrap,stream,sw"
     tmpfs:
-      - /var/cache/nginx:size=50M
-    healthcheck:
-      test: ["CMD", "pidof", "nginx"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
+      - /var/cache/nginx:size=100M
     depends_on:
-      - landingbackend
+      - bridge
     networks:
       - pcs
-    cpu_shares: 10
-    deploy:
-      resources:
-        limits:
-          memory: 64M
 
-  # Proxy for MediaFusion API (mesh-router needs port 80)
-  mediafusionproxy:
-    image: nginx:alpine
-    container_name: mediafusionprotoapiproxy
-    hostname: mediafusionprotoapi
+  # Bridge Service (Addon Wrapper + Router)
+  bridge:
+    image: ghcr.io/krizcold/stremio-torrent-bridge:latest
+    container_name: stremio-bridge
     restart: unless-stopped
-    user: "0:0"
+    cpu_shares: 80
+    user: "1000:1000"
     expose:
-      - 80
-    volumes:
-      - /DATA/AppData/mediafusionproto/nginx-api.conf:/etc/nginx/conf.d/default.conf:ro
-    tmpfs:
-      - /var/cache/nginx:size=10M
-      - /run:size=10M
-    depends_on:
-      - mediafusion
-    networks:
-      - pcs
-    cpu_shares: 10
-    deploy:
-      resources:
-        limits:
-          memory: 64M
-
-  # Main MediaFusion API - Stremio addon
-  mediafusion:
-    image: mhdzumair/mediafusion:latest
-    container_name: mediafusionproto
-    restart: unless-stopped
-    expose:
-      - 8000
+      - 8080
+    extra_hosts:
+      - "torrserver:host-gateway"
+      - "rqbit:host-gateway"
+      - "qbittorrent:host-gateway"
     environment:
-      HOST_URL: "https://mediafusionprotoapi-${REF_DOMAIN}"
-      SECRET_KEY: "${PCS_DEFAULT_PASSWORD}!mfkey!!"
-      API_PASSWORD: "${PCS_DEFAULT_PASSWORD}"
-      ADDON_NAME: "MediaFusion (Proto)"
-      LOGGING_LEVEL: "DEBUG"
-      IS_PUBLIC_INSTANCE: "false"
-      MONGO_URI: "mongodb://mongodb:27017/mediafusion"
-      POSTGRES_URI: "postgresql+asyncpg://mediafusion:mediafusion@postgres:5432/mediafusion"
-      REDIS_URL: "redis://redis:6379"
-      FLARESOLVERR_URL: "http://byparr:8191/v1"
-      PLAYWRIGHT_CDP_URL: "ws://browserless:3000?blockAds=true&stealth=true"
-      # Prowlarr enabled - user must configure their own indexers
-      is_scrap_from_prowlarr: "true"
-      prowlarr_url: "http://prowlarr:9696"
-      prowlarr_api_key: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"
-      # All built-in scrapers disabled by default (legal reasons)
-      # User can enable these manually if they choose
-      is_scrap_from_bt4g: "false"
-      is_scrap_from_yts: "false"
-      is_scrap_from_torrentio: "false"
-      is_scrap_from_mediafusion: "false"
-      is_scrap_from_zilean: "false"
-      is_scrap_from_jackett: "false"
+      TORRENT_ENGINE: "${TORRENT_ENGINE:-qbittorrent}"
+      BRIDGE_EXTERNAL_URL: "https://stremiotorrentbridge-${PCS_DOMAIN}"
+      TORRSERVER_URL: "http://torrserver:8090"
+      TORRSERVER_USERNAME: "bridge"
+      TORRSERVER_PASSWORD: "$PCS_DEFAULT_PASSWORD"
+      RQBIT_URL: "http://rqbit:3030"
+      RQBIT_USERNAME: "bridge"
+      RQBIT_PASSWORD: "$PCS_DEFAULT_PASSWORD"
+      QBITTORRENT_URL: "http://qbittorrent:8080"
+      QBITTORRENT_DOWNLOAD_PATH: "/downloads"
+      QBITTORRENT_USERNAME: "admin"
+      QBITTORRENT_PASSWORD: "$PCS_DEFAULT_PASSWORD"
+      CACHE_SIZE_GB: "${CACHE_SIZE_GB:-60}"
+      CACHE_MAX_AGE_DAYS: "${CACHE_MAX_AGE_DAYS:-7}"
+      TZ: "$TZ"
+    volumes:
+      - /DATA/AppData/stremiotorrentbridge/bridge:/data
+      - /DATA/AppData/stremiotorrentbridge/qbittorrent/downloads:/downloads:ro
     depends_on:
-      - mongodb
-      - postgres
-      - redis
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 2m
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
+      - torrserver
     networks:
       - pcs
+    x-casaos:
+      envs:
+        - container: TORRENT_ENGINE
+          description:
+            en_us: "Torrent engine to use: torrserver, rqbit, or qbittorrent"
+        - container: CACHE_SIZE_GB
+          description:
+            en_us: "Maximum cache size in gigabytes"
+        - container: CACHE_MAX_AGE_DAYS
+          description:
+            en_us: "Maximum days to keep unused cached torrents"
+      volumes:
+        - container: /data
+          description:
+            en_us: "Bridge configuration and addon data"
+
+  # Engine A: TorrServer
+  torrserver:
+    image: ghcr.io/yourok/torrserver:MatriX.137
+    container_name: stremio-bridge-torrserver
+    restart: unless-stopped
     cpu_shares: 50
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-
-  # qBittorrent with WebDAV
-  qbittorrent:
-    image: mhdzumair/qbittorrent-webdav:latest
-    container_name: mediafusionprotoqbittorrent
-    restart: unless-stopped
-    user: "0:0"
-    ports:
-      - "8083:80"
-      - "6881:6881/tcp"
-      - "6881:6881/udp"
-    environment:
-      PUID: "1000"
-      PGID: "1000"
-    volumes:
-      - /DATA/AppData/mediafusionproto/qbittorrent/downloads/:/downloads/
-      - /DATA/AppData/mediafusionproto/qbittorrent/config/:/config/
-    networks:
-      - pcs
-
-  # qBittorrent API proxy - fixes duplicate torrent handling
-  # MediaFusion bug: doesn't check if torrent exists before adding
-  # qBittorrent returns "Fails." for duplicates, MediaFusion treats as error
-  # This proxy uses nginx mirror to fire-and-forget to qBittorrent while returning "Ok."
-  qbittorrent-api:
-    image: nginx:alpine
-    container_name: mediafusionprotoqbittorrentapi
-    restart: unless-stopped
-    user: "0:0"
-    expose:
-      - 80
-    volumes:
-      - /DATA/AppData/mediafusionproto/nginx-qbapi.conf:/etc/nginx/conf.d/default.conf:ro
-    tmpfs:
-      - /var/cache/nginx:size=10M
-      - /run:size=10M
-    depends_on:
-      - qbittorrent
-    networks:
-      - pcs
-    cpu_shares: 10
-    deploy:
-      resources:
-        limits:
-          memory: 64M
-
-  # Proxy for qBittorrent WebUI
-  qbittorrentproxy:
-    image: ghcr.io/yundera/nginx-hash-lock:latest
-    container_name: mediafusionprotoqbittorrentproxy
-    hostname: mediafusionprotoqbittorrent
-    restart: unless-stopped
-    user: "root"
-    expose:
-      - 80
-    environment:
-      BACKEND_HOST: "qbittorrent"
-      BACKEND_PORT: "80"
-      BACKEND_PATH: "/qbittorrent/"
-      LISTEN_PORT: "80"
-      USERNAME: "admin"
-      PASSWORD: "${PCS_DEFAULT_PASSWORD}"
-    tmpfs:
-      - /var/cache/nginx:size=50M
-    depends_on:
-      - qbittorrent
-    networks:
-      - pcs
-    cpu_shares: 10
-    deploy:
-      resources:
-        limits:
-          memory: 64M
-
-  # WebDAV proxy for external Stremio access (no auth required)
-  webdavproxy:
-    image: nginx:alpine
-    container_name: mediafusionprotowebdavproxy
-    hostname: mediafusionprotowebdav
-    restart: unless-stopped
-    user: "0:0"
-    expose:
-      - 80
-    volumes:
-      - /DATA/AppData/mediafusionproto/nginx-webdav.conf:/etc/nginx/conf.d/default.conf:ro
-    tmpfs:
-      - /var/cache/nginx:size=10M
-      - /run:size=10M
-    depends_on:
-      - qbittorrent
-    networks:
-      - pcs
-    cpu_shares: 10
-    deploy:
-      resources:
-        limits:
-          memory: 64M
-
-  # Proxy for Prowlarr UI
-  prowlarrproxy:
-    image: ghcr.io/yundera/nginx-hash-lock:latest
-    container_name: mediafusionprotoprowlarrproxy
-    hostname: mediafusionprotoprowlarr
-    restart: unless-stopped
-    user: "root"
-    expose:
-      - 80
-    environment:
-      BACKEND_HOST: "prowlarr"
-      BACKEND_PORT: "9696"
-      LISTEN_PORT: "80"
-      USERNAME: "admin"
-      PASSWORD: "${PCS_DEFAULT_PASSWORD}"
-    tmpfs:
-      - /var/cache/nginx:size=50M
-    depends_on:
-      - prowlarr
-    networks:
-      - pcs
-    cpu_shares: 10
-    deploy:
-      resources:
-        limits:
-          memory: 64M
-
-  # Background task worker
-  dramatiqworker:
-    image: mhdzumair/mediafusion:latest
-    container_name: mediafusionprotoworker
-    restart: unless-stopped
-    command: ["dramatiq", "api.task", "-p", "1", "-t", "4"]
-    environment:
-      HOST_URL: "https://mediafusionprotoapi-${REF_DOMAIN}"
-      API_PASSWORD: "${PCS_DEFAULT_PASSWORD}"
-      MONGO_URI: "mongodb://mongodb:27017/mediafusion"
-      POSTGRES_URI: "postgresql+asyncpg://mediafusion:mediafusion@postgres:5432/mediafusion"
-      REDIS_URL: "redis://redis:6379"
-      SECRET_KEY: "${PCS_DEFAULT_PASSWORD}!mfkey!!"
-    depends_on:
-      - mongodb
-      - postgres
-      - redis
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    networks:
-      - pcs
-    cpu_shares: 30
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-
-  # PostgreSQL
-  postgres:
-    image: postgres:16-alpine
-    container_name: mediafusionprotopostgres
-    restart: unless-stopped
-    user: "0:0"
-    environment:
-      POSTGRES_USER: mediafusion
-      POSTGRES_PASSWORD: mediafusion
-      POSTGRES_DB: mediafusion
-    command:
-      - "postgres"
-      - "-c"
-      - "shared_buffers=128MB"
-      - "-c"
-      - "effective_cache_size=384MB"
-      - "-c"
-      - "maintenance_work_mem=64MB"
-      - "-c"
-      - "work_mem=8MB"
-    volumes:
-      - /DATA/AppData/mediafusionproto/postgres/:/var/lib/postgresql/data/
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mediafusion -d mediafusion"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    networks:
-      - pcs
-    cpu_shares: 30
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-
-  # MongoDB
-  mongodb:
-    image: mongo:7
-    container_name: mediafusionprotomongodb
-    restart: unless-stopped
-    user: "0:0"
-    volumes:
-      - /DATA/AppData/mediafusionproto/mongodb/:/data/db/
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
-      interval: 10s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
-    networks:
-      - pcs
-    cpu_shares: 30
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-
-  # Redis
-  redis:
-    image: redis:7-alpine
-    container_name: mediafusionprotoredis
-    restart: unless-stopped
-    user: "0:0"
-    command: redis-server --appendonly yes --save 60 1
-    volumes:
-      - /DATA/AppData/mediafusionproto/redis/:/data/
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli --raw INFO | grep -q '^loading:0'"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - pcs
-    cpu_shares: 20
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-
-  # Prowlarr - Indexer aggregator
-  prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
-    container_name: mediafusionprotoprowlarr
-    restart: unless-stopped
-    environment:
-      PUID: "0"
-      PGID: "0"
-      TZ: "UTC"
-    expose:
-      - 9696
-    volumes:
-      - /DATA/AppData/mediafusionproto/prowlarr/:/config/
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    networks:
-      - pcs
-    cpu_shares: 20
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-
-  # One-time setup: Configure FlareSolverr proxy in Prowlarr
-  prowlarr-setup:
-    image: curlimages/curl:latest
-    container_name: mediafusionprotoprowlarrsetup
-    depends_on:
-      - prowlarr
-    restart: "no"
-    volumes:
-      - /DATA/AppData/mediafusionproto/scripts/:/scripts/:ro
-    entrypoint: ["/bin/sh", "/scripts/prowlarr-setup.sh"]
-    networks:
-      - pcs
-
-  # Byparr - Cloudflare bypass (replaces FlareSolverr which is now broken)
-  # Increased resources to reduce cold start time (~200s → faster)
-  byparr:
-    image: ghcr.io/thephaseless/byparr:latest
-    container_name: mediafusionprotobyparr
-    restart: unless-stopped
-    user: "0:0"
-    expose:
-      - 8191
-    environment:
-      - UV_CACHE_DIR=/tmp/uv-cache
-    tmpfs:
-      - /tmp:size=512M
-    # Override slow built-in healthcheck (their /health loads a page with Playwright, takes 30s+)
-    # Just check if the port is listening
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f -s http://localhost:8191/ || exit 0"]
-      interval: 60s
-      timeout: 5s
-      retries: 3
-      start_period: 60s
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    networks:
-      - pcs
-    cpu_shares: 50
-    deploy:
-      resources:
-        limits:
-          memory: 1024M
-
-  # Keep-warm sidecar: pings Byparr every 2 minutes to prevent cold starts
-  byparr-keepwarm:
-    image: curlimages/curl:latest
-    container_name: mediafusionprotobyparrkeepalive
-    restart: unless-stopped
-    depends_on:
-      - byparr
+    network_mode: host
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        echo "Byparr keep-warm service started"
-        sleep 180
-        while true; do
-          echo "Pinging Byparr to keep warm..."
-          curl -s -X POST "http://byparr:8191/v1" \
-            -H "Content-Type: application/json" \
-            -d '{"cmd":"request.get","url":"https://example.com","maxTimeout":60000}' > /dev/null 2>&1 || true
-          sleep 120
-        done
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    networks:
-      - pcs
-    cpu_shares: 5
-    deploy:
-      resources:
-        limits:
-          memory: 16M
-
-  # Browserless - Headless Chrome
-  browserless:
-    image: ghcr.io/browserless/chromium
-    container_name: mediafusionprotobrowserless
-    restart: unless-stopped
+        printf '{"bridge":"%s"}' "$$TS_AUTH_PASSWORD" > "$$TS_CONF_PATH/accs.db"
+        PUB_IPV6=$$(wget -qO- https://api6.ipify.org 2>/dev/null || true)
+        mkdir -p "$$TS_CONF_PATH" "$$TS_TORR_DIR"
+        touch "$$TS_LOG_PATH"
+        printf '%s' '{"BitTorr":{"CacheSize":268435456,"ReaderReadAHead":95,"PreloadCache":5,"UseDisk":true,"TorrentsSavePath":"","RemoveCacheOnDrop":false,"ForceEncrypt":false,"RetrackersMode":1,"TorrentDisconnectTimeout":300,"EnableDebug":false,"EnableDLNA":false,"FriendlyName":"","EnableRutorSearch":false,"EnableTorznabSearch":false,"TorznabUrls":null,"EnableIPv6":true,"DisableTCP":false,"DisableUTP":false,"DisableUPNP":false,"DisableDHT":false,"DisablePEX":false,"DisableUpload":false,"DownloadRateLimit":0,"UploadRateLimit":0,"ConnectionsLimit":150,"PeersListenPort":42069,"SslPort":0,"SslCert":"","SslKey":"","ResponsiveMode":true,"ShowFSActiveTorr":true,"StoreSettingsInJson":true,"StoreViewedInJson":false}}' > "$$TS_CONF_PATH/settings.json"
+        FLAGS="--path $$TS_CONF_PATH --logpath $$TS_LOG_PATH --port $$TS_PORT --torrentsdir $$TS_TORR_DIR --dontkill --httpauth"
+        [ -n "$$PUB_IPV6" ] && FLAGS="$$FLAGS --pubipv6 $$PUB_IPV6"
+        echo "Running with: $$FLAGS"
+        exec torrserver $$FLAGS
     environment:
-      TIMEOUT: "-1"
-    expose:
-      - 3000
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/json/version"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    networks:
-      - pcs
-    cpu_shares: 30
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+      TS_PORT: "8090"
+      TS_DONTKILL: "1"
+      TS_HTTPAUTH: "1"
+      TS_AUTH_PASSWORD: "$PCS_DEFAULT_PASSWORD"
+    volumes:
+      - /DATA/AppData/stremiotorrentbridge/torrserver/config:/opt/ts/config
+      - /DATA/AppData/stremiotorrentbridge/torrserver/cache:/opt/ts/torrents
+
+  # Engine B: rqbit
+  rqbit:
+    image: ikatson/rqbit:9.0.0-beta.2
+    container_name: stremio-bridge-rqbit
+    restart: unless-stopped
+    cpu_shares: 50
+    network_mode: host
+    command: server start --listen-port 4240 /downloads
+    environment:
+      RQBIT_HTTP_BASIC_AUTH_USERPASS: "bridge:$PCS_DEFAULT_PASSWORD"
+    volumes:
+      - /DATA/AppData/stremiotorrentbridge/rqbit/downloads:/downloads
+      - /DATA/AppData/stremiotorrentbridge/rqbit/config:/root/.config/rqbit
+
+  # Engine C: qBittorrent
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:5.1.4
+    container_name: stremio-bridge-qbittorrent
+    restart: unless-stopped
+    cpu_shares: 50
+    network_mode: host
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mkdir -p /config/qBittorrent
+        cat << 'PYEOF' > /tmp/qbt_config.py
+        import hashlib, os, base64, sys, pathlib
+        password = sys.argv[1].encode()
+        salt = os.urandom(16)
+        dk = hashlib.pbkdf2_hmac('sha512', password, salt, 100000)
+        pw_hash = '@ByteArray(' + base64.b64encode(salt).decode() + ':' + base64.b64encode(dk).decode() + ')'
+        config = '[LegalNotice]\nAccepted=true\n\n[Preferences]\n'
+        config += 'WebUI\\Port=8080\n'
+        config += 'WebUI\\Username=admin\n'
+        config += 'WebUI\\Password_PBKDF2=' + pw_hash + '\n'
+        config += 'WebUI\\HostHeaderValidation=false\n'
+        config += 'WebUI\\CSRFProtection=false\n'
+        config += 'WebUI\\ServerDomains=*\n'
+        config += 'WebUI\\Address=*\n'
+        config += 'Connection\\PortRangeMin=6881\n'
+        config += 'Connection\\UPnP=false\n'
+        config += 'Bittorrent\\MaxConnecs=500\n'
+        config += 'Bittorrent\\MaxConnecsPerTorrent=100\n'
+        config += 'Queueing\\QueueingEnabled=false\n'
+        config += 'Downloads\\SavePath=/downloads/\n'
+        pathlib.Path('/config/qBittorrent/qBittorrent.conf').write_text(config)
+        print('Password hash: ' + pw_hash)
+        PYEOF
+        python3 /tmp/qbt_config.py "$$QBT_PASSWORD"
+        echo "qBittorrent config written, starting init..."
+        exec /init
+    environment:
+      PUID: "$PUID"
+      PGID: "$PGID"
+      TZ: "$TZ"
+      WEBUI_PORT: "8080"
+      QBT_PASSWORD: "$PCS_DEFAULT_PASSWORD"
+    volumes:
+      - /DATA/AppData/stremiotorrentbridge/qbittorrent/config:/config
+      - /DATA/AppData/stremiotorrentbridge/qbittorrent/downloads:/downloads
 
 networks:
   pcs:
@@ -502,44 +173,44 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  main: landing
-  author: Yundera
-  developer: mhdzumair
-  icon: https://cdn.jsdelivr.net/gh/krizcold/AppStore@main/Apps/StremioMediastream/icon.png
+  main: stremiotorrentbridge
+  author: kriz_cold
+  developer: kriz_cold
+  icon: https://cdn.jsdelivr.net/gh/Yundera/AppStore@main/Apps/stremio-torrent-bridge/icon.png
   tagline:
-    en_us: Stremio addon with real torrent downloads via qBittorrent
-  category: Media
+    en_us: "Full-peer torrent streaming for Stremio"
+  category: Entertainment
   description:
     en_us: |
-      PROTOTYPE - MediaFusion with step-by-step setup guide.
-
-      ⚠️ FOR INTERNAL TESTING ONLY - NOT FOR PRODUCTION ⚠️
+      Stremio Torrent Bridge wraps Stremio addons (like Torrentio) to provide
+      enhanced torrent streaming with full TCP/UDP peer connectivity, solving
+      Stremio's built-in WebRTC limitation that only connects to ~2% of peers.
 
       Features:
-      - qBittorrent backend with WebDAV streaming
-      - IPv6 port 6881 exposed for peer connections
-      - 10x more peers than Stremio's built-in engine
-      - User-configured sources via Prowlarr
+      - Wrap any Stremio addon for full peer connectivity
+      - Triple-engine: TorrServer (default), rqbit (low memory), qBittorrent (max speed)
+      - HTTP streaming with seek support (Range requests)
+      - Automatic LRU cache management
+      - Management UI for addon configuration
 
-      SETUP REQUIRED - Follow the step-by-step instructions on the landing page.
+      Default engine: TorrServer
+      Change via TORRENT_ENGINE environment variable on "bridge" service.
   title:
-    en_us: MediaFusion (Prototype)
-  store_app_id: mediafusionproto
+    en_us: "Stremio Torrent Bridge"
   is_uncontrolled: false
   index: /?hash=$AUTH_HASH
-  webui_port: 80
-  pre-install-cmd: |
-    curl -fsSL https://raw.githubusercontent.com/krizcold/AppStore/main/Apps/StremioMediastreamProto/scripts/pre-install.sh | bash
+  port_map: "80"
   tips:
     before_install:
       en_us: |
-        ⚠️ PROTOTYPE - FOR TESTING ONLY ⚠️
+        Access: `https://${REF_DOMAIN}/`
 
-        After installation:
-        1. Open the app landing page
-        2. Follow the step-by-step instructions
-        3. Configure MediaFusion with qBittorrent
-        4. Add your own indexers via Prowlarr
-        5. Install the addon in Stremio
+        1. Open the Bridge UI
+        2. Paste a Stremio addon manifest URL (e.g., Torrentio)
+        3. Copy the wrapped URL and install it in Stremio
+        4. Enjoy full peer connectivity!
 
-        Port 6881 exposed on IPv6 for 10x better peer connectivity.
+        Change the torrent engine via TORRENT_ENGINE on the "bridge" service:
+        - `torrserver` (default) - Easy setup, IPv6 support
+        - `rqbit` - Low memory usage, great for Raspberry Pi
+        - `qbittorrent` - Maximum download speed, ISP throttle bypass
