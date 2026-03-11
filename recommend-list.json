@@ -1,8 +1,5 @@
 [
-  {
-    "appid": "filebrowser"
-  },
-  {
-    "appid": "plex"
-  }
+  {"appid": "filebrowser"},
+  {"appid": "teamspeak"},
+  {"appid": "nextcloud"}
 ]
