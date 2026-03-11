@@ -1,14 +1,5 @@
 [
-    {
-        "name": "duplicati",
-        "editor": "Duplicati Team",
-        "date": "1640829941",
-        "reason": ""
-    },
-    {
-        "name": "filebrowser",
-        "editor": "Filebrowser Team",
-        "date": "1640829941",
-        "reason": ""
-    }
+  {"appid": "filebrowser"},
+  {"appid": "teamspeak"},
+  {"appid": "nextcloud"}
 ]
